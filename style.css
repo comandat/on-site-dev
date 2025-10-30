@@ -8,7 +8,6 @@ html {
   height: 100%;
   min-height: 100dvh;
   font-family: Inter, sans-serif;
-  overflow: hidden;
 }
 
 .tap-highlight-transparent {
@@ -75,3 +74,4 @@ html {
     background-size: cover;
     background-position: center;
 }
+
