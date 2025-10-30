@@ -1,27 +1,34 @@
 // scripts/search-handler.js
 import { AppState, fetchProductDetailsInBulk } from './data.js';
 
-document.addEventListener('DOMContentLoaded', () => {
-    // --- START: Search functionality for product-detail.html ---
+// Funcția de inițializare este acum exportată și primește router-ul
+export function initSearchHandler(navigateTo) {
+    const pageContent = document.getElementById('product-detail-page-content'); // Containerul paginii de detalii
     const searchTriggerButton = document.getElementById('search-trigger-button');
     const searchOverlay = document.getElementById('search-overlay');
-    const productDetailPage = document.getElementById('product-detail-page');
 
-    if (searchTriggerButton && searchOverlay && productDetailPage) {
+    let openSearch; // Declarăm funcția aici
+
+    if (searchTriggerButton && searchOverlay && pageContent) {
         const closeSearch = () => {
             searchOverlay.classList.add('hidden');
             searchOverlay.innerHTML = '';
-            productDetailPage.style.filter = 'none';
+            pageContent.style.filter = 'none'; // Folosim containerul specific
         };
 
         const selectProduct = (commandId, productId) => {
             sessionStorage.setItem('currentCommandId', commandId);
             sessionStorage.setItem('currentProductId', productId);
-            window.location.reload();
+            
+            // --- START MODIFICARE ---
+            // Folosim router-ul în loc de reload
+            navigateTo('product-detail');
+            closeSearch(); // Închidem overlay-ul după selecție
+            // --- FINAL MODIFICARE ---
         };
 
-        const openSearch = async () => {
-            productDetailPage.style.filter = 'blur(5px)';
+        openSearch = async () => {
+            pageContent.style.filter = 'blur(5px)'; // Folosim containerul specific
             searchOverlay.classList.remove('hidden');
             searchOverlay.innerHTML = `
                 <div class="absolute inset-0 bg-gray-900 bg-opacity-50" id="search-bg"></div>
@@ -111,26 +118,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
         searchTriggerButton.addEventListener('click', openSearch);
 
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('search') === 'true') {
-            openSearch();
-            // Clean up the URL
-            const newUrl = window.location.pathname;
-            window.history.replaceState({}, document.title, newUrl);
-        }
+        // --- START MODIFICARE ---
+        // Logica de căutare URL este eliminată. Router-ul se ocupă de asta.
+        // --- FINAL MODIFICARE ---
     }
     // --- END: Search functionality for product-detail.html ---
 
 
     // --- START: Redirection logic from other pages ---
-    const footerSearchButton = document.getElementById('footer-search-trigger');
-    // If we are on a page that is NOT product-detail, and we have a footer search button, set it to redirect.
-    if (footerSearchButton && !searchOverlay) {
-        footerSearchButton.addEventListener('click', (event) => {
-            event.preventDefault();
-            // Redirect to product-detail.html and trigger the search overlay.
-            window.location.href = 'product-detail.html?search=true';
-        });
-    }
+    // Găsim TOATE butoanele de căutare din footer
+    const footerSearchButtons = document.querySelectorAll('#footer-search-trigger');
+    
+    footerSearchButtons.forEach(footerSearchButton => {
+        // Verificăm dacă suntem pe o pagină care NU are overlay-ul de căutare (adică nu e product-detail)
+        // Această verificare se face acum prin simpla prezență a butonului
+        if (footerSearchButton) {
+            footerSearchButton.addEventListener('click', (event) => {
+                event.preventDefault();
+                // --- START MODIFICARE ---
+                // Folosim router-ul pentru a naviga și a trimite contextul de "search"
+                navigateTo('product-detail', { search: true });
+                // --- FINAL MODIFICARE ---
+            });
+        }
+    });
     // --- END: Redirection logic ---
-});
+    
+    // Returnăm funcția openSearch pentru a fi folosită de router
+    return openSearch;
+}
