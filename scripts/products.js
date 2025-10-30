@@ -1,6 +1,76 @@
 // scripts/products.js
+// --- START MODIFICARE: Importă noile funcții/constante ---
 import { AppState, fetchDataAndSyncState, fetchProductDetailsInBulk } from './data.js';
-import { router } from './app-router.js'; // Importăm router-ul
+import { router } from './app-router.js';
+import { showToast } from './printer-handler.js'; // Refolosim funcția de notificare
+// --- FINAL MODIFICARE ---
+
+// --- START MODIFICARE: Adaugă URL-ul webhook-ului n8n ---
+// (Acesta este URL-ul complet bazat pe calea 'fix-duplicate-sku' din n8n)
+const FIX_DUPLICATE_SKU_URL = 'https://automatizare.comandat.ro/webhook/fix-duplicate-sku';
+// --- FINAL MODIFICARE ---
+
+
+// --- START MODIFICARE: Adaugă această funcție nouă ---
+/**
+ * Apelează webhook-ul n8n pentru a repara SKU-urile duplicate.
+ */
+async function handleFixDuplicates() {
+    // 1. Obține datele curente
+    const orderId = sessionStorage.getItem('currentCommandId');
+    const manifestSkuFromStorage = sessionStorage.getItem('currentManifestSku'); // Acesta poate fi 'No ManifestSKU'
+
+    // 2. Cere utilizatorului ASIN-ul
+    const asin = prompt("Introduceți ASIN-ul care are SKU-uri duplicate în acest palet:");
+    
+    if (!asin || asin.trim() === '') {
+        showToast('Operațiune anulată.', 2000);
+        return;
+    }
+
+    // 3. Pregătește payload-ul
+    const payload = {
+        orderId: orderId,
+        // --- AICI ESTE FIX-UL CRITIC ---
+        // Trimitem 'null' către n8n dacă valoarea este 'No ManifestSKU',
+        // altfel trimitem valoarea normală.
+        manifestsku: manifestSkuFromStorage === 'No ManifestSKU' ? null : manifestSkuFromStorage,
+        asin: asin.trim()
+    };
+
+    const button = document.getElementById('fix-duplicates-button');
+    if (button) button.disabled = true;
+    showToast('Se procesează...', 2000);
+
+    try {
+        // 4. Apelează Webhook-ul
+        const response = await fetch(FIX_DUPLICATE_SKU_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) throw new Error('Răspuns eșuat de la server.');
+        
+        const result = await response.json();
+        if (result.status !== 'success') throw new Error('Serverul nu a putut executa comanda.');
+
+        // 5. Succes: Reîncarcă lista de produse
+        showToast('SKU-urile au fost reparate! Se reîncarcă lista.', 3000);
+        
+        // Re-rulează funcția de inițializare a paginii curente
+        // pentru a prelua noile date (fetchDataAndSyncState) și a re-renda lista.
+        await initProductsPage(); 
+
+    } catch (error) {
+        console.error('Eroare la fixarea SKU-urilor:', error);
+        showToast(`Eroare: ${error.message}`, 4000);
+    } finally {
+        if (button) button.disabled = false;
+    }
+}
+// --- FINAL MODIFICARE ---
+
 
 // Funcția este acum exportată pentru a fi apelată de router
 export async function initProductsPage() {
@@ -29,6 +99,13 @@ export async function initProductsPage() {
             router.navigateTo('pallets');
         };
     }
+    
+    // --- START MODIFICARE: Adaugă listener pentru noul buton ---
+    const fixDuplicatesButton = document.getElementById('fix-duplicates-button');
+    if (fixDuplicatesButton) {
+        fixDuplicatesButton.onclick = handleFixDuplicates;
+    }
+    // --- FINAL MODIFICARE ---
     
     if (!manifestSku) {
         console.warn('Niciun manifest SKU selectat. Se afișează toate produsele.');
