@@ -1,7 +1,9 @@
 // scripts/main.js
 import { AppState, fetchDataAndSyncState } from './data.js';
+import { router } from './app-router.js'; // Importăm router-ul
 
-document.addEventListener('DOMContentLoaded', () => {
+// Funcția este acum exportată pentru a fi apelată de router
+export async function initCommandsPage() {
     const container = document.getElementById('commands-list-container');
     if (!container) return;
 
@@ -17,7 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
         commands.forEach(command => {
             const commandEl = document.createElement('a');
             // --- START MODIFICARE ---
-            commandEl.href = 'pallets.html'; // Schimbăm destinația
+            commandEl.href = '#'; // Nu mai folosim href-ul pentru navigare
             // --- FINAL MODIFICARE ---
             commandEl.className = 'block rounded-lg bg-white p-4 shadow-sm transition-transform hover:scale-105 active:scale-95';
             
@@ -37,19 +39,18 @@ document.addEventListener('DOMContentLoaded', () => {
             commandEl.addEventListener('click', (event) => {
                 event.preventDefault();
                 sessionStorage.setItem('currentCommandId', command.id);
-                window.location.href = commandEl.href;
+                // --- START MODIFICARE ---
+                // Folosim router-ul în loc de window.location
+                router.navigateTo('pallets');
+                // --- FINAL MODIFICARE ---
             });
 
             container.appendChild(commandEl);
         });
     };
 
-    async function initializePage() {
-        container.innerHTML = '<p class="col-span-2 text-center text-gray-500">Se încarcă comenzile...</p>';
-        // Folosim numele corect al funcției
-        await fetchDataAndSyncState();
-        renderCommandsList();
-    }
-
-    initializePage();
-});
+    // Numele funcției a fost schimbat în initCommandsPage
+    container.innerHTML = '<p class="col-span-2 text-center text-gray-500">Se încarcă comenzile...</p>';
+    await fetchDataAndSyncState();
+    renderCommandsList();
+}
