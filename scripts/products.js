@@ -1,7 +1,9 @@
 // scripts/products.js
 import { AppState, fetchDataAndSyncState, fetchProductDetailsInBulk } from './data.js';
+import { router } from './app-router.js'; // Importăm router-ul
 
-document.addEventListener('DOMContentLoaded', () => {
+// Funcția este acum exportată pentru a fi apelată de router
+export async function initProductsPage() {
     const container = document.getElementById('products-list-container');
     const commandId = sessionStorage.getItem('currentCommandId');
     
@@ -17,24 +19,26 @@ document.addEventListener('DOMContentLoaded', () => {
         pageTitle.textContent = manifestSku ? `Produse - ${manifestSku.substring(0, 15)}...` : 'Produse';
     }
     
+    // Modificăm listener-ul butonului de back să folosească router-ul
     if (backButton) {
         // Setăm listener pentru a curăța manifestSku la întoarcere
-        backButton.addEventListener('click', (e) => {
+        // Folosim .onclick pentru a suprascrie listenerii anteriori și a evita dublarea
+        backButton.onclick = (e) => {
             e.preventDefault();
             sessionStorage.removeItem('currentManifestSku');
-            window.location.href = e.currentTarget.href;
-        });
+            router.navigateTo('pallets');
+        };
     }
     
     if (!manifestSku) {
         console.warn('Niciun manifest SKU selectat. Se afișează toate produsele.');
         // Opțional, ai putea redirecționa înapoi la paleți
-        // window.location.href = 'pallets.html';
+        // router.navigateTo('pallets');
         // return;
     }
     // --- FINAL MODIFICARE ---
 
-
+    // Funcția de randare rămâne în interiorul inițializatorului
     async function renderProductsList() {
         if (!container || !commandId) return;
 
@@ -78,7 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const imageUrl = details?.images?.[0] || '';
 
             const productEl = document.createElement('a');
-            productEl.href = `product-detail.html`;
+            productEl.href = `#`; // Nu mai folosim href
             productEl.className = 'flex items-center gap-4 bg-white p-4 transition-colors hover:bg-gray-50';
             
             productEl.innerHTML = `
@@ -93,11 +97,14 @@ document.addEventListener('DOMContentLoaded', () => {
             productEl.addEventListener('click', (event) => {
                 event.preventDefault();
                 sessionStorage.setItem('currentProductId', product.id);
-                window.location.href = event.currentTarget.href;
+                // --- START MODIFICARE ---
+                // Folosim router-ul
+                router.navigateTo('product-detail');
+                // --- FINAL MODIFICARE ---
             });
             container.appendChild(productEl);
         });
     }
 
-    renderProductsList();
-});
+    await renderProductsList(); // Apelăm funcția de randare
+}
