@@ -3,7 +3,7 @@ import { fetchDataAndSyncState } from './data.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     if (sessionStorage.getItem('isLoggedIn') === 'true') {
-        window.location.href = 'main.html';
+        window.location.href = 'app.html';
         return;
     }
 
@@ -46,7 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (syncSuccess) {
                 sessionStorage.setItem('isLoggedIn', 'true');
-                window.location.href = 'main.html';
+                window.location.href = 'app.html';
             } else {
                 errorMessage.textContent = 'Autentificare reușită, dar eroare la sincronizarea datelor.';
             }
@@ -73,3 +73,4 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
