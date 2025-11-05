@@ -131,12 +131,26 @@ export async function initProductsPage() {
 
         // --- START MODIFICARE ---
         // Filtrăm produsele pe baza manifestSku-ului selectat
-        const filteredProducts = command.products.filter(p => {
+        let filteredProducts = command.products.filter(p => {
             if (manifestSku === 'No ManifestSKU') {
                 return !p.manifestsku; // Potrivire pentru cele nule sau goale
             }
             return p.manifestsku === manifestSku;
         });
+
+        // --- START MODIFICARE (Sortare) ---
+        // Sortăm lista: produsele complete (found >= expected) merg la final
+        filteredProducts.sort((a, b) => {
+            const aComplete = Number(a.found) >= Number(a.expected);
+            const bComplete = Number(b.found) >= Number(b.expected);
+            
+            // aComplete (true=1, false=0) - bComplete (true=1, false=0)
+            // Daca 'a' e complet (1) si 'b' e incomplet (0), rezultatul e 1 (a merge dupa b)
+            // Daca 'a' e incomplet (0) si 'b' e complet (1), rezultatul e -1 (a merge inainte de b)
+            // Daca ambele sunt la fel (0-0 sau 1-1), rezultatul e 0 (ordine neschimbata)
+            return aComplete - bComplete; 
+        });
+        // --- FINAL MODIFICARE (Sortare) ---
 
         if (filteredProducts.length === 0) {
             container.innerHTML = '<p class="p-4 text-center text-gray-500">Acest palet nu are produse.</p>';
@@ -162,6 +176,13 @@ export async function initProductsPage() {
             productEl.href = `#`; // Nu mai folosim href
             productEl.className = 'flex items-center gap-4 bg-white p-4 transition-colors hover:bg-gray-50';
             
+            // --- START MODIFICARE: Adăugăm o clasă pentru produsele complete ---
+            // Adăugăm un fundal verde pal și opacitate redusă pentru produsele complete
+            if (Number(product.found) >= Number(product.expected)) {
+                 productEl.className += ' bg-green-50 opacity-80';
+            }
+            // --- FINAL MODIFICARE ---
+
             productEl.innerHTML = `
                 <img alt="${productName}" class="h-14 w-14 rounded-md object-cover bg-gray-200" src="${imageUrl}" />
                 <div class="flex-1 min-w-0">
