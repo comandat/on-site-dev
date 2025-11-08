@@ -106,7 +106,7 @@ export const router = {
 
 // --- START MODIFICARE: Logica Scanner-ului ---
 
-const SCAN_WEBHOOK_URL = 'https://automatizare.comandat.ro/webhook-test/find-product-by-lpn';
+const SCAN_WEBHOOK_URL = 'https://automatizare.comandat.ro/webhook/find-product-by-lpn';
 let html5QrCode = null;
 
 /**
