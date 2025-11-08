@@ -5,9 +5,15 @@ import { initPalletsPage } from './pallets.js';
 import { initProductsPage } from './products.js';
 import { initProductDetailPage } from './product-detail.js';
 import { initAddProductPage } from './add-product.js';
-import { initSearchHandler } from './search-handler.js';
 
-let openSearchFunction = () => {};
+// === START MODIFICARE ===
+// Am șters importul pentru search-handler
+// Adăugăm importurile necesare pentru noua logică
+import { AppState } from './data.js';
+import { showToast } from './printer-handler.js'; // Refolosim funcția de toast
+// === FINAL MODIFICARE ===
+
+// let openSearchFunction = () => {}; // ȘTERS
 let pages = {};
 
 /**
@@ -40,7 +46,10 @@ function navigateTo(pageId, context = {}) {
                 initProductsPage();
                 break;
             case 'product-detail':
-                initProductDetailPage(context, openSearchFunction);
+                // === START MODIFICARE ===
+                // Am scos openSearchFunction din apel
+                initProductDetailPage(context);
+                // === FINAL MODIFICARE ===
                 break;
             case 'add-product':
                 initAddProductPage();
@@ -60,6 +69,7 @@ function navigateTo(pageId, context = {}) {
  */
 function updateFooterActiveState(activePageId) {
     document.querySelectorAll('footer [data-nav]').forEach(button => {
+        // ... (logica internă rămâne neschimbată)
         const page = button.dataset.nav;
         const icon = button.querySelector('.material-symbols-outlined');
         const text = button.querySelector('.text-xs');
@@ -79,6 +89,14 @@ function updateFooterActiveState(activePageId) {
              button.classList.remove('text-gray-500', 'hover:text-[var(--primary-color)]');
         }
     });
+    
+    // === START MODIFICARE ===
+    // Adăugăm și logica pentru butonul de scanare (să nu pară activ)
+    document.querySelectorAll('#footer-scan-trigger').forEach(button => {
+        button.classList.remove('text-[var(--primary-color)]');
+        button.classList.add('text-gray-500', 'hover:text-[var(--primary-color)]');
+    });
+    // === FINAL MODIFICARE ===
 }
 
 
@@ -100,6 +118,151 @@ export const router = {
     navigateTo
 };
 
+// --- START MODIFICARE: Logica Scanner-ului ---
+
+const SCAN_WEBHOOK_URL = 'https://automatizare.comandat.ro/webhook-test/find-product-by-lpn';
+let html5QrCode = null;
+
+/**
+ * Callback-ul de succes la scanare
+ */
+async function onScanSuccess(decodedText, decodedResult) {
+    // Oprește scanerul
+    stopScanner();
+    showToast('Cod scanat. Se caută produsul...');
+
+    try {
+        // 1. Apelează webhook-ul (presupunem că LPN-ul este trimis ca query param)
+        const response = await fetch(`${SCAN_WEBHOOK_URL}?lpn=${decodedText}`, {
+            method: 'GET',
+        });
+
+        if (!response.ok) throw new Error('Eroare de rețea sau LPN negăsit.');
+
+        const productsData = await response.json();
+        if (!productsData || productsData.length === 0) {
+            throw new Error('Produsul nu a fost găsit (răspuns gol).');
+        }
+
+        const productInfo = productsData[0];
+        const productSku = productInfo["Product SKU"]; // Cheia de legătură
+
+        if (!productSku) {
+            throw new Error('Răspunsul API nu conține "Product SKU".');
+        }
+
+        // 2. Caută produsul în AppState
+        const allCommands = AppState.getCommands();
+        let foundProduct = null;
+        let foundCommandId = null;
+
+        for (const command of allCommands) {
+            const product = command.products.find(p => p.id === productSku);
+            if (product) {
+                foundProduct = product;
+                foundCommandId = command.id;
+                break; // Am găsit comanda și produsul
+            }
+        }
+
+        // 3. Navighează
+        if (foundProduct && foundCommandId) {
+            sessionStorage.setItem('currentCommandId', foundCommandId);
+            sessionStorage.setItem('currentProductId', foundProduct.id);
+            // Asigură-te că setezi și manifestSku pentru coerența navigației
+            sessionStorage.setItem('currentManifestSku', foundProduct.manifestsku || 'No ManifestSKU');
+            
+            showToast('Produs găsit! Se deschide...');
+            router.navigateTo('product-detail');
+        } else {
+            // Cazul: API-ul a găsit produsul, dar el nu există în AppState (comenzile curente)
+            throw new Error('Produsul nu există în comenzile încărcate.');
+        }
+
+    } catch (error) {
+        console.error('Eroare la procesarea LPN:', error);
+        showToast(error.message, 5000);
+    }
+}
+
+function onScanFailure(error) {
+    // Nu face nimic, e normal (doar înseamnă că nu a găsit un cod încă)
+}
+
+/**
+ * Pornește interfața de scanare
+ */
+function startScanner() {
+    const scannerContainer = document.getElementById('scanner-container');
+    if (!scannerContainer) return;
+
+    scannerContainer.classList.remove('hidden');
+    
+    // Inițializează scanner-ul dacă nu este deja
+    if (!html5QrCode) {
+        html5QrCode = new Html5Qrcode("reader");
+    }
+    
+    // Solicită camera
+    Html5Qrcode.getCameras().then(cameras => {
+        if (cameras && cameras.length) {
+            // Încearcă să folosească camera din spate (environment)
+            const cameraId = cameras.find(c => c.label.toLowerCase().includes('back'))?.id || cameras[0].id;
+            
+            html5QrCode.start(
+                cameraId,
+                { fps: 10, qrbox: { width: 250, height: 250 } }, // Configurare scanner
+                onScanSuccess,
+                onScanFailure
+            ).catch(err => {
+                console.error("Eroare la pornirea scannerului:", err);
+                showToast("Nu s-a putut porni camera.", 3000);
+                stopScanner(); // Închide modal-ul dacă pornirea eșuează
+            });
+        }
+    }).catch(err => {
+        console.error("Eroare la accesarea camerelor:", err);
+        showToast("Eroare la accesarea camerelor.", 3000);
+    });
+}
+
+/**
+ * Oprește scanner-ul și închide modal-ul
+ */
+function stopScanner() {
+    const scannerContainer = document.getElementById('scanner-container');
+    if (scannerContainer) scannerContainer.classList.add('hidden');
+
+    if (html5QrCode && html5QrCode.isScanning) {
+        html5QrCode.stop().catch(err => {
+            console.error("Eroare la oprirea scannerului:", err);
+        });
+    }
+}
+
+/**
+ * Inițializează listener-ii pentru scanner
+ */
+function initScannerHandler() {
+    const closeScannerButton = document.getElementById('close-scanner-button');
+    if (closeScannerButton) {
+        closeScannerButton.addEventListener('click', stopScanner);
+    }
+
+    // Adaugă un listener global pe body care prinde click-urile
+    // pe ORICARE buton de scanare (fiindcă sunt mai multe)
+    document.body.addEventListener('click', (e) => {
+        const scanButton = e.target.closest('#footer-scan-trigger');
+        if (scanButton) {
+            e.preventDefault();
+            startScanner();
+        }
+    });
+}
+
+// --- FINAL MODIFICARE: Logica Scanner-ului ---
+
+
 // --- Inițializarea aplicației ---
 document.addEventListener('DOMContentLoaded', () => {
     // Colectează toate elementele paginii
@@ -110,8 +273,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // Încearcă reconectarea automată la imprimantă
     autoConnectToPrinter();
 
+    // === START MODIFICARE ===
     // Inițializează handler-ul de căutare (care returnează funcția openSearch)
-    openSearchFunction = initSearchHandler(navigateTo);
+    // openSearchFunction = initSearchHandler(navigateTo); // ȘTERS
+    
+    // Inițializează noul handler pentru scanner
+    initScannerHandler();
+    // === FINAL MODIFICARE ===
 
     // Adaugă listener global pentru butoanele de navigație [data-nav] (ex: footere)
     document.body.addEventListener('click', (e) => {
