@@ -126,16 +126,20 @@ async function onScanSuccess(decodedText, decodedResult) {
         if (!response.ok) throw new Error('Eroare de rețea sau LPN negăsit.');
 
         const productsData = await response.json();
-        if (!productsData || productsData.length === 0) {
-            throw new Error('Produsul nu a fost găsit (răspuns gol).');
-        }
 
+        // --- START FIX ---
+        // Verificăm dacă răspunsul este un array, are elemente, 
+        // și primul element are cheia de care avem nevoie.
+        if (!Array.isArray(productsData) || productsData.length === 0 || !productsData[0]["Product SKU"]) {
+            console.error("Răspuns API invalid sau produs negăsit:", productsData);
+            throw new Error('Produsul nu a fost găsit sau răspunsul API e invalid.');
+        }
+        
+        // Acum suntem siguri că productsData[0] și productsData[0]["Product SKU"] există.
         const productInfo = productsData[0];
-        const productSku = productInfo["Product SKU"]; // Cheia de legătură
+        const productSku = productInfo["Product SKU"];
+        // --- END FIX ---
 
-        if (!productSku) {
-            throw new Error('Răspunsul API nu conține "Product SKU".');
-        }
 
         // 2. Caută produsul în AppState
         const allCommands = AppState.getCommands();
@@ -189,17 +193,14 @@ function startScanner() {
         html5QrCode = new Html5Qrcode("reader");
     }
     
-    // --- START MODIFICARE AICI ---
-
     // Configurația pentru scanner
     const config = { 
         fps: 10
-        // AM ELIMINAT 'qrbox'. Fără el, scanner-ul va folosi tot ecranul,
+        // Am eliminat 'qrbox'. Fără el, scanner-ul va folosi tot ecranul,
         // ceea ce este mult mai bun pentru coduri de bare.
     };
 
     // Solicităm direct camera din spate (environment)
-    // Acest mod este superior căutării după "back" în etichetă.
     html5QrCode.start(
         { facingMode: "environment" }, // Solicită camera din spate
         config,
@@ -219,8 +220,6 @@ function startScanner() {
             stopScanner(); // Închide modal-ul dacă pornirea eșuează
         });
     });
-    
-    // --- FINAL MODIFICARE AICI ---
 }
 
 /**
