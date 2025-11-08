@@ -118,7 +118,7 @@ async function onScanSuccess(decodedText, decodedResult) {
     showToast('Cod scanat. Se caută produsul...');
 
     try {
-        // 1. Apelează webhook-ul (presupunem că LPN-ul este trimis ca query param)
+        // 1. Apelează webhook-ul
         const response = await fetch(`${SCAN_WEBHOOK_URL}?lpn=${decodedText}`, {
             method: 'GET',
         });
@@ -129,24 +129,37 @@ async function onScanSuccess(decodedText, decodedResult) {
 
         // --- START FIX ---
         // Verificăm dacă răspunsul este un array, are elemente, 
-        // și primul element are cheia de care avem nevoie.
-        if (!Array.isArray(productsData) || productsData.length === 0 || !productsData[0]["Product SKU"]) {
-            console.error("Răspuns API invalid sau produs negăsit:", productsData);
-            throw new Error('Produsul nu a fost găsit sau răspunsul API e invalid.');
-        }
+        // și primul element are cheia "Product SKU" (cazul LPN valid).
         
-        // Acum suntem siguri că productsData[0] și productsData[0]["Product SKU"] există.
-        const productInfo = productsData[0];
+        let productInfo = null;
+        
+        if (Array.isArray(productsData) && productsData.length > 0 && productsData[0]["Product SKU"]) {
+            // Cazul fericit: API-ul a returnat un array cu un produs valid pe prima poziție
+            productInfo = productsData[0];
+        } 
+        // Cazul de rezervă: API-ul returnează un singur obiect (nu un array)
+        else if (typeof productsData === 'object' && productsData !== null && !Array.isArray(productsData) && productsData["Product SKU"]) {
+            productInfo = productsData;
+        }
+
+        // Dacă, după ambele verificări, tot nu avem un produs, aruncăm eroare.
+        if (!productInfo) {
+            console.error("Produsul nu a fost găsit în răspunsul API (LPN invalid?):", productsData);
+            throw new Error('Produsul nu a fost găsit în API (LPN invalid?).');
+        }
+
         const productSku = productInfo["Product SKU"];
         // --- END FIX ---
 
 
         // 2. Caută produsul în AppState
+        // (Datele SUNT aici, încărcate de la login)
         const allCommands = AppState.getCommands();
         let foundProduct = null;
         let foundCommandId = null;
 
         for (const command of allCommands) {
+            // p.id este mapat la p.productsku în data.js
             const product = command.products.find(p => p.id === productSku);
             if (product) {
                 foundProduct = product;
@@ -166,7 +179,8 @@ async function onScanSuccess(decodedText, decodedResult) {
             router.navigateTo('product-detail');
         } else {
             // Cazul: API-ul a găsit produsul, dar el nu există în AppState (comenzile curente)
-            throw new Error('Produsul nu există în comenzile încărcate.');
+            showToast(`Produsul (SKU: ...${productSku.slice(-6)}) nu e în comenzile curente.`, 5000);
+            console.error('Produsul (SKU: ' + productSku + ') a fost găsit în API, dar nu există în comenzile încărcate în AppState.');
         }
 
     } catch (error) {
@@ -196,8 +210,7 @@ function startScanner() {
     // Configurația pentru scanner
     const config = { 
         fps: 10
-        // Am eliminat 'qrbox'. Fără el, scanner-ul va folosi tot ecranul,
-        // ceea ce este mult mai bun pentru coduri de bare.
+        // Am eliminat 'qrbox' pentru a scana full-screen (mai bine pt coduri de bare)
     };
 
     // Solicităm direct camera din spate (environment)
@@ -207,7 +220,7 @@ function startScanner() {
         onScanSuccess,
         onScanFailure
     ).catch(err => {
-        // Dacă 'environment' eșuează (ex: pe un desktop sau o eroare), încercăm camera default
+        // Dacă 'environment' eșuează (ex: pe un desktop), încercăm camera default
         console.warn("Camera 'environment' nu a putut fi pornită, se încearcă camera default:", err);
         html5QrCode.start(
             undefined, // Lasă biblioteca să aleagă camera default
