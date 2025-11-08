@@ -22,12 +22,6 @@ let clickHandler = null;
 // pentru a se asigura că pagina este activă
 let pageElements = {};
 
-// --- START MODIFICARE ---
-// Toată logica de conectare (showToast, isPrinterConnected, createNiimbotPacket, 
-// connectToDevice, discoverAndConnect, printLabel, autoConnectToPrinter)
-// A FOST ȘTEARSĂ de aici și mutată în 'printer-handler.js'
-// --- FINAL MODIFICARE ---
-
 function getLatestProductData() {
     const command = AppState.getCommands().find(c => c.id === currentCommandId);
     return command ? command.products.find(p => p.id === currentProductId) : null;
@@ -386,7 +380,7 @@ async function initializePageContent() {
  * Funcția de inițializare a paginii, apelată de router.
  * Setează elementele DOM și listener-ii o singură dată.
  */
-export async function initProductDetailPage(context = {}, openSearch) {
+export async function initProductDetailPage(context = {}) {
     // Caută elementele DOM o singură dată
     pageElements = {
         title: document.getElementById('product-detail-title'),
@@ -399,7 +393,6 @@ export async function initProductDetailPage(context = {}, openSearch) {
         stockModal: document.getElementById('stock-modal'),
         printerModal: document.getElementById('printer-modal'),
         openModalButton: document.getElementById('open-stock-modal-button'),
-        // footerPrinterButton: document.getElementById('footer-printer-button') // Acesta nu mai există
     };
 
     // Setează listener-ii care trebuie setați o singură dată
@@ -423,7 +416,6 @@ export async function initProductDetailPage(context = {}, openSearch) {
         }
     };
     pageElements.openModalButton.onclick = openModalFlow;
-    // pageElements.footerPrinterButton.onclick = openModalFlow; // Acesta nu mai există
 
     // Butonul Trimite ASIN
     const sendAsinButton = document.getElementById('send-asin-button');
@@ -464,8 +456,5 @@ export async function initProductDetailPage(context = {}, openSearch) {
     // --- Rulează logica de afișare a conținutului ---
     await initializePageContent();
 
-    // --- Verifică dacă trebuie să deschidă căutarea ---
-    if (context.search === true && openSearch) {
-        openSearch();
-    }
+    // --- Am eliminat blocul 'if (context.search === true && openSearch)' ---
 }
