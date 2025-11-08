@@ -6,14 +6,9 @@ import { initProductsPage } from './products.js';
 import { initProductDetailPage } from './product-detail.js';
 import { initAddProductPage } from './add-product.js';
 
-// === START MODIFICARE ===
-// Am șters importul pentru search-handler
-// Adăugăm importurile necesare pentru noua logică
 import { AppState } from './data.js';
-import { showToast } from './printer-handler.js'; // Refolosim funcția de toast
-// === FINAL MODIFICARE ===
+import { showToast } from './printer-handler.js';
 
-// let openSearchFunction = () => {}; // ȘTERS
 let pages = {};
 
 /**
@@ -46,10 +41,7 @@ function navigateTo(pageId, context = {}) {
                 initProductsPage();
                 break;
             case 'product-detail':
-                // === START MODIFICARE ===
-                // Am scos openSearchFunction din apel
                 initProductDetailPage(context);
-                // === FINAL MODIFICARE ===
                 break;
             case 'add-product':
                 initAddProductPage();
@@ -69,10 +61,7 @@ function navigateTo(pageId, context = {}) {
  */
 function updateFooterActiveState(activePageId) {
     document.querySelectorAll('footer [data-nav]').forEach(button => {
-        // ... (logica internă rămâne neschimbată)
         const page = button.dataset.nav;
-        const icon = button.querySelector('.material-symbols-outlined');
-        const text = button.querySelector('.text-xs');
 
         // Reset
         button.classList.remove('text-[var(--primary-color)]');
@@ -90,13 +79,10 @@ function updateFooterActiveState(activePageId) {
         }
     });
     
-    // === START MODIFICARE ===
-    // Adăugăm și logica pentru butonul de scanare (să nu pară activ)
     document.querySelectorAll('#footer-scan-trigger').forEach(button => {
         button.classList.remove('text-[var(--primary-color)]');
         button.classList.add('text-gray-500', 'hover:text-[var(--primary-color)]');
     });
-    // === FINAL MODIFICARE ===
 }
 
 
@@ -203,27 +189,38 @@ function startScanner() {
         html5QrCode = new Html5Qrcode("reader");
     }
     
-    // Solicită camera
-    Html5Qrcode.getCameras().then(cameras => {
-        if (cameras && cameras.length) {
-            // Încearcă să folosească camera din spate (environment)
-            const cameraId = cameras.find(c => c.label.toLowerCase().includes('back'))?.id || cameras[0].id;
-            
-            html5QrCode.start(
-                cameraId,
-                { fps: 10, qrbox: { width: 250, height: 250 } }, // Configurare scanner
-                onScanSuccess,
-                onScanFailure
-            ).catch(err => {
-                console.error("Eroare la pornirea scannerului:", err);
-                showToast("Nu s-a putut porni camera.", 3000);
-                stopScanner(); // Închide modal-ul dacă pornirea eșuează
-            });
-        }
-    }).catch(err => {
-        console.error("Eroare la accesarea camerelor:", err);
-        showToast("Eroare la accesarea camerelor.", 3000);
+    // --- START MODIFICARE AICI ---
+
+    // Configurația pentru scanner
+    const config = { 
+        fps: 10
+        // AM ELIMINAT 'qrbox'. Fără el, scanner-ul va folosi tot ecranul,
+        // ceea ce este mult mai bun pentru coduri de bare.
+    };
+
+    // Solicităm direct camera din spate (environment)
+    // Acest mod este superior căutării după "back" în etichetă.
+    html5QrCode.start(
+        { facingMode: "environment" }, // Solicită camera din spate
+        config,
+        onScanSuccess,
+        onScanFailure
+    ).catch(err => {
+        // Dacă 'environment' eșuează (ex: pe un desktop sau o eroare), încercăm camera default
+        console.warn("Camera 'environment' nu a putut fi pornită, se încearcă camera default:", err);
+        html5QrCode.start(
+            undefined, // Lasă biblioteca să aleagă camera default
+            config,
+            onScanSuccess,
+            onScanFailure
+        ).catch(err2 => {
+            console.error("Eroare la pornirea scannerului (și pe default):", err2);
+            showToast("Nu s-a putut porni camera.", 3000);
+            stopScanner(); // Închide modal-ul dacă pornirea eșuează
+        });
     });
+    
+    // --- FINAL MODIFICARE AICI ---
 }
 
 /**
@@ -272,14 +269,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Încearcă reconectarea automată la imprimantă
     autoConnectToPrinter();
-
-    // === START MODIFICARE ===
-    // Inițializează handler-ul de căutare (care returnează funcția openSearch)
-    // openSearchFunction = initSearchHandler(navigateTo); // ȘTERS
     
     // Inițializează noul handler pentru scanner
     initScannerHandler();
-    // === FINAL MODIFICARE ===
 
     // Adaugă listener global pentru butoanele de navigație [data-nav] (ex: footere)
     document.body.addEventListener('click', (e) => {
