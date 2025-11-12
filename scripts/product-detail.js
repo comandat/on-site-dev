@@ -1,7 +1,7 @@
 // scripts/product-detail.js
 import { AppState, fetchDataAndSyncState, sendStockUpdate, fetchProductDetailsInBulk } from './data.js';
 import { router } from './app-router.js';
-import { isPrinterConnected, discoverAndConnect, printLabel, showToast } from './printer-handler.js';
+import { isPrinterConnected, discoverAndConnect, printLabel, showToast, preCacheProductLabels } from './printer-handler.js';
 
 const TITLE_UPDATE_URL = 'https://automatizare.comandat.ro/webhook/0d61e5a2-2fb8-4219-b80a-a75999dd32fc';
 
@@ -338,6 +338,7 @@ function addModalEventListeners() {
 /**
  * Logica principală de inițializare a conținutului paginii.
  */
+
 async function initializePageContent() {
     currentCommandId = sessionStorage.getItem('currentCommandId');
     currentProductId = sessionStorage.getItem('currentProductId');
@@ -358,8 +359,15 @@ async function initializePageContent() {
     
     renderPageContent();
     await renderProductDetails(currentProduct.asin);
+    
+    // --- START MODIFICARE: Pre-caching etichete ---
+    if (currentProduct.asin) {
+        // Pornim pre-generarea în fundal, FĂRĂ await
+        // Acest lucru nu va bloca UI-ul
+        preCacheProductLabels(currentProduct.asin);
+    }
+    // --- FINAL MODIFICARE ---
 }
-
 
 /**
  * Funcția de inițializare a paginii, apelată de router.
@@ -456,4 +464,5 @@ export async function initProductDetailPage(context = {}, openSearch) {
     }
     // --- FINAL FIX ---
 }
+
 
