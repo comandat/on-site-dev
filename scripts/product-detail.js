@@ -1,10 +1,7 @@
 // scripts/product-detail.js
 import { AppState, fetchDataAndSyncState, sendStockUpdate, fetchProductDetailsInBulk } from './data.js';
-// --- START MODIFICARE ---
-// Importăm router-ul și funcțiile de printare
 import { router } from './app-router.js';
 import { isPrinterConnected, discoverAndConnect, printLabel, showToast } from './printer-handler.js';
-// --- FINAL MODIFICARE ---
 
 const TITLE_UPDATE_URL = 'https://automatizare.comandat.ro/webhook/0d61e5a2-2fb8-4219-b80a-a75999dd32fc';
 
@@ -18,8 +15,6 @@ let stockStateInModal = {};
 let pressTimer = null;
 let clickHandler = null;
 
-// Elementele DOM sunt acum căutate în interiorul funcției de inițializare
-// pentru a se asigura că pagina este activă
 let pageElements = {};
 
 function getLatestProductData() {
@@ -66,7 +61,6 @@ async function renderProductDetails(productAsin) {
     if (swiper) {
         swiper.destroy(true, true); // Distrugem instanța veche
     }
-    // Re-inițializăm Swiper
     swiper = new Swiper('#image-swiper-container', { 
         pagination: { el: '.swiper-pagination' } 
     });
@@ -77,18 +71,14 @@ async function handleTitleEdit() {
         showToast('Eroare: ASIN-ul produsului lipsește.');
         return;
     }
-
     const currentTitle = pageElements.title.textContent;
     const newTitle = prompt("Introduceți noul titlu:", currentTitle);
-
     if (newTitle === null || newTitle.trim() === '' || newTitle.trim() === currentTitle) {
         showToast('Modificare anulată.', 2000);
         return;
     }
-
     pageElements.editTitleButton.disabled = true;
     showToast('Se salvează noul titlu...');
-
     try {
         const response = await fetch(TITLE_UPDATE_URL, {
             method: 'PATCH',
@@ -98,22 +88,15 @@ async function handleTitleEdit() {
                 title: newTitle.trim()
             })
         });
-
         if (!response.ok) throw new Error('Eroare de rețea la salvarea titlului.');
-
         const result = await response.json();
-
         if (result.status === 'success') {
             sessionStorage.removeItem(`product_${currentProduct.asin}`);
-            // --- START MODIFICARE ---
-            // Re-inițializăm pagina curentă în loc de reload
             showToast('Titlu salvat. Se reîncarcă detaliile...');
-            await initializePageContent(); // Funcție helper pentru a re-rula logica de inițializare
-            // --- FINAL MODIFICARE ---
+            await initializePageContent(); 
         } else {
             throw new Error(result.message || 'Eroare de la server.');
         }
-
     } catch (error) {
         console.error('Eroare la modificarea titlului:', error);
         showToast(`Eroare: ${error.message}`, 4000);
@@ -125,7 +108,6 @@ async function handleSaveChanges() {
     const saveButton = document.getElementById('save-btn');
     saveButton.disabled = true;
     saveButton.textContent = 'Se salvează...';
-
     const productAsinForPrinting = currentProduct.asin;
     
     if (typeof productAsinForPrinting !== 'string' || productAsinForPrinting.trim() === '') {
@@ -158,10 +140,8 @@ async function handleSaveChanges() {
     if (success) {
         await fetchDataAndSyncState();
         renderPageContent();
-
         const conditionMap = { 'new': 'CN', 'very-good': 'FB', 'good': 'B' };
         const printQueue = [];
-
         for (const condition in delta) {
             if (delta[condition] > 0 && conditionMap[condition]) {
                 printQueue.push({
@@ -171,20 +151,14 @@ async function handleSaveChanges() {
                 });
             }
         }
-        
         hideModal();
-
         if (printQueue.length > 0) {
             const totalLabels = printQueue.reduce((sum, item) => sum + item.quantity, 0);
             showToast(`Se inițiază imprimarea pentru ${totalLabels} etichete...`);
-            
             for (const item of printQueue) {
                 try {
                     showToast(`Se printează ${item.quantity} etichete pentru ${item.code}`);
-                    // --- START MODIFICARE ---
-                    // Folosim funcția importată
                     await printLabel(item.code, item.conditionLabel, item.quantity);
-                    // --- FINAL MODIFICARE ---
                     await new Promise(resolve => setTimeout(resolve, 3000)); 
                 } catch (e) {
                     showToast(`Eroare la imprimare. Procesul s-a oprit.`);
@@ -194,7 +168,6 @@ async function handleSaveChanges() {
             }
             showToast(`S-a finalizat imprimarea.`);
         }
-
     } else {
         alert('Eroare la salvare! Vă rugăm încercați din nou.');
         saveButton.disabled = false;
@@ -218,33 +191,23 @@ function showPrinterModal() {
                 <button id="close-printer-modal-btn" class="w-full mt-2 rounded-lg bg-gray-200 py-3 font-bold text-gray-700">Anulează</button>
             </div>
         </div>`;
-
     const connectBtn = document.getElementById('connect-btn');
     const closeBtn = document.getElementById('close-printer-modal-btn');
     const printerStatus = document.getElementById('printer-status');
-
     const statusCallback = (message) => {
         printerStatus.textContent = message;
-        // --- START MODIFICARE ---
-        // Folosim funcția importată
         if (isPrinterConnected()) {
-        // --- FINAL MODIFICARE ---
             hidePrinterModal();
             showModal();
         }
     };
-
     connectBtn.addEventListener('click', async () => {
         connectBtn.disabled = true;
         connectBtn.textContent = 'Se conectează...';
-        // --- START MODIFICARE ---
-        // Folosim funcția importată
         await discoverAndConnect(statusCallback);
-        // --- FINAL MODIFICARE ---
         connectBtn.disabled = false;
         connectBtn.textContent = 'Caută Imprimantă';
     });
-    
     closeBtn.addEventListener('click', hidePrinterModal);
 }
 
@@ -292,17 +255,15 @@ function hideModal() {
 }
 
 function createCounter(id, label, value, isDanger = false) {
-    // ... (codul neschimbat)
-        return `
-            <div class="flex items-center justify-between py-3 border-b">
-                <span class="text-lg font-medium ${isDanger ? 'text-red-600' : 'text-gray-800'}">${label}</span>
-                <div class="flex items-center gap-3">
-                    <button data-action="minus" data-target="${id}" class="control-btn rounded-full bg-gray-200 w-8 h-8 flex items-center justify-center text-lg font-bold select-none">-</button>
-                    <input type="number" id="count-${id}" value="${value}" class="text-xl font-bold w-16 text-center border-gray-300 rounded-md shadow-sm">
-                    <button data-action="plus" data-target="${id}" class="control-btn rounded-full bg-gray-200 w-8 h-8 flex items-center justify-center text-lg font-bold select-none">+</button>
-                </div>
-            </div>`;
-    
+    return `
+        <div class="flex items-center justify-between py-3 border-b">
+            <span class="text-lg font-medium ${isDanger ? 'text-red-600' : 'text-gray-800'}">${label}</span>
+            <div class="flex items-center gap-3">
+                <button data-action="minus" data-target="${id}" class="control-btn rounded-full bg-gray-200 w-8 h-8 flex items-center justify-center text-lg font-bold select-none">-</button>
+                <input type="number" id="count-${id}" value="${value}" class="text-xl font-bold w-16 text-center border-gray-300 rounded-md shadow-sm">
+                <button data-action="plus" data-target="${id}" class="control-btn rounded-full bg-gray-200 w-8 h-8 flex items-center justify-center text-lg font-bold select-none">+</button>
+            </div>
+        </div>`;
 }
 
 function updateValue(target, newValue) {
@@ -351,14 +312,13 @@ function addModalEventListeners() {
 
 /**
  * Logica principală de inițializare a conținutului paginii.
- * Aceasta rulează de fiecare dată când pagina este afișată.
  */
 async function initializePageContent() {
     currentCommandId = sessionStorage.getItem('currentCommandId');
     currentProductId = sessionStorage.getItem('currentProductId');
     
     if (!currentCommandId || !currentProductId) {
-        router.navigateTo('commands'); // Navigăm la comenzi dacă lipsesc datele
+        router.navigateTo('commands');
         return;
     }
     
@@ -367,7 +327,7 @@ async function initializePageContent() {
     
     if (!currentProduct) {
         alert('Produsul nu a fost gasit');
-        router.navigateTo('products'); // Navigăm la produse
+        router.navigateTo('products');
         return;
     }
     
@@ -378,9 +338,11 @@ async function initializePageContent() {
 
 /**
  * Funcția de inițializare a paginii, apelată de router.
- * Setează elementele DOM și listener-ii o singură dată.
  */
-export async function initProductDetailPage(context = {}) {
+// --- START FIX: Am adăugat la loc parametrul openSearch ---
+export async function initProductDetailPage(context = {}, openSearch) {
+// --- FINAL FIX ---
+    
     // Caută elementele DOM o singură dată
     pageElements = {
         title: document.getElementById('product-detail-title'),
@@ -393,10 +355,12 @@ export async function initProductDetailPage(context = {}) {
         stockModal: document.getElementById('stock-modal'),
         printerModal: document.getElementById('printer-modal'),
         openModalButton: document.getElementById('open-stock-modal-button'),
+        // --- START FIX: Am adăugat la loc butonul de căutare ---
+        searchTriggerButton: document.getElementById('search-trigger-button')
+        // --- FINAL FIX ---
     };
 
     // Setează listener-ii care trebuie setați o singură dată
-    // Folosim .onclick pentru a fi siguri că suprascriem listener-ii vechi
     
     // Butonul de back
     document.getElementById('back-to-list-button').onclick = (e) => {
@@ -406,6 +370,12 @@ export async function initProductDetailPage(context = {}) {
     
     // Butonul de editare titlu
     pageElements.editTitleButton.onclick = handleTitleEdit;
+
+    // --- START FIX: Am adăugat la loc listener-ul pentru Căutare ---
+    if (pageElements.searchTriggerButton && openSearch) {
+        pageElements.searchTriggerButton.onclick = openSearch;
+    }
+    // --- FINAL FIX ---
     
     // Fluxul de deschidere modal
     const openModalFlow = () => {
@@ -437,7 +407,6 @@ export async function initProductDetailPage(context = {}) {
                 if (response.ok && responseData.status === 'success') {
                     showToast('Datele au fost actualizate!');
                     sessionStorage.removeItem(`product_${currentProduct.asin}`);
-                    // Re-inițializăm conținutul paginii
                     await initializePageContent(); 
                 } else {
                     const errorMessage = responseData.message || 'Eroare necunoscută.';
@@ -453,8 +422,12 @@ export async function initProductDetailPage(context = {}) {
         };
     }
     
-    // --- Rulează logica de afișare a conținutului ---
+    // Rulează logica de afișare a conținutului
     await initializePageContent();
 
-    // --- Am eliminat blocul 'if (context.search === true && openSearch)' ---
+    // --- START FIX: Am adăugat la loc logica de deschidere a căutării ---
+    if (context.search === true && openSearch) {
+        openSearch();
+    }
+    // --- FINAL FIX ---
 }

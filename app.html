@@ -117,7 +117,10 @@
                                 <button id="back-to-list-button" class="flex h-10 w-10 items-center justify-center rounded-full bg-black/30 text-white backdrop-blur-sm transition-opacity duration-300">
                                     <span class="material-symbols-outlined">arrow_back</span>
                                 </button>
-                                <div class="w-10"></div> </div>
+                                <button id="search-trigger-button" class="flex h-10 w-10 items-center justify-center rounded-full bg-black/30 text-white backdrop-blur-sm transition-opacity duration-300">
+                                    <span class="material-symbols-outlined">search</span>
+                                </button>
+                            </div>
                         </header>
                         <div class="relative overflow-hidden rounded-b-2xl shadow-lg">
                             <div id="image-swiper-container" class="swiper aspect-[4/3] bg-gray-200">
@@ -280,8 +283,11 @@
     <div id="stock-modal" class="fixed inset-0 z-50 hidden bg-black/40"></div>
     <div id="printer-modal" class="fixed inset-0 z-50 hidden bg-black/40"></div>
     
-
+    <div id="search-overlay" class="fixed inset-0 z-30 hidden"></div>
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    
+    <script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"></script>
+
     <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
     
     <script src="scripts/data.js" type="module"></script>
@@ -291,6 +297,7 @@
     <script src="scripts/products.js" type="module"></script>
     <script src="scripts/add-product.js" type="module"></script>
     
+    <script src="scripts/search-handler.js" type="module"></script>
     <script src="scripts/product-detail.js" type="module"></script>
     <script src="scripts/app-router.js" type="module"></script> 
 
