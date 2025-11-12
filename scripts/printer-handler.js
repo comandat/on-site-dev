@@ -1,19 +1,27 @@
 // scripts/printer-handler.js
 
-// Acest modul gestionează starea conexiunii Bluetooth
-// Variabilele de stare sunt definite aici și persistă atâta timp cât pagina app.html este deschisă
+// --- START MODIFICARE: Funcție ajutătoare pentru Jurnale ---
+/**
+ * Scrie un mesaj în consolă cu un marcaj de timp precis (HH:MM:SS.ms)
+ * @param {string} message - Mesajul de afișat
+ */
+function logWithTimestamp(message) {
+    const now = new Date();
+    const time = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}.${now.getMilliseconds().toString().padStart(3, '0')}`;
+    console.log(`[${time}] ${message}`);
+}
+// --- FINAL MODIFICARE ---
 
+// Variabilele de stare
 let niimbotCharacteristic = null;
 let isConnecting = false;
 let printerDevice = null;
 
-// --- START MODIFICARE ---
-// Adăugăm un cache pentru pachetele de date pre-generate
+// Cache pentru pachetele de date pre-generate
 let printPacketCache = {
     asin: null,
     packets: {} // Aici vom stoca 'new', 'very-good', 'good'
 };
-// --- FINAL MODIFICARE ---
 
 
 /**
@@ -54,15 +62,23 @@ export function createNiimbotPacket(type, data = []) {
  * Se conectează la un dispozitiv Bluetooth (imprimantă).
  */
 export async function connectToDevice(device, statusCallback) {
-    if (isConnecting) return false;
+    // ... (lăsăm neschimbat, dar adăugăm log-uri)
+    logWithTimestamp("connectToDevice: Start");
+    if (isConnecting) {
+        logWithTimestamp("connectToDevice: Conectare deja în progres. Stop.");
+        return false;
+    }
     isConnecting = true;
 
     try {
         if (statusCallback) statusCallback(`Conectare la ${device.name}...`);
+        logWithTimestamp(`connectToDevice: Apel device.gatt.connect() pentru ${device.name}...`);
         const server = await device.gatt.connect();
+        logWithTimestamp("connectToDevice: Conectat la GATT. Caut servicii...");
         
         const services = await server.getPrimaryServices();
         let foundCharacteristic = null;
+        logWithTimestamp(`connectToDevice: Găsit ${services.length} servicii. Caut caracteristici...`);
         for (const service of services) {
             const characteristics = await service.getCharacteristics();
             for (const char of characteristics) {
@@ -74,14 +90,20 @@ export async function connectToDevice(device, statusCallback) {
             if (foundCharacteristic) break;
         }
 
-        if (!foundCharacteristic) throw new Error('Caracteristica necesară nu a fost găsită.');
+        if (!foundCharacteristic) {
+            logWithTimestamp("connectToDevice: EROARE: Caracteristica necesară nu a fost găsită.");
+            throw new Error('Caracteristica necesară nu a fost găsită.');
+        }
         
+        logWithTimestamp("connectToDevice: Caracteristică găsită. Pornire notificări...");
         niimbotCharacteristic = foundCharacteristic;
         await niimbotCharacteristic.startNotifications();
+        logWithTimestamp("connectToDevice: Notificări pornite.");
         
         printerDevice = device;
 
         device.addEventListener('gattserverdisconnected', () => {
+            logWithTimestamp("connectToDevice: Eveniment 'gattserverdisconnected' declanșat.");
             showToast('Imprimanta a fost deconectată.');
             niimbotCharacteristic = null;
             printerDevice = null;
@@ -89,11 +111,13 @@ export async function connectToDevice(device, statusCallback) {
 
         if (statusCallback) statusCallback(`Conectat la ${device.name}.`);
         isConnecting = false;
+        logWithTimestamp("connectToDevice: Conectare reușită. End.");
         return true;
 
     } catch (error) {
         if (statusCallback) statusCallback(`Eroare la conectare: ${error.message}`);
         isConnecting = false;
+        logWithTimestamp(`connectToDevice: EROARE: ${error.message}. End.`);
         return false;
     }
 }
@@ -115,47 +139,43 @@ export async function discoverAndConnect(statusCallback) {
     }
 }
 
-// --- START MODIFICARE: Extragem logica "grea" într-o funcție separată ---
 
 /**
  * Partea "grea": Generează pachetele de date pentru o etichetă.
- * Aceasta este funcția care consumă timp (creare QR, canvas, bitmap).
  */
 async function generateLabelPackets(productCode, conditionLabel) {
     const textToPrint = `${productCode}${conditionLabel}`;
+    logWithTimestamp(`generateLabelPackets: Start pentru '${textToPrint}'`);
     
-    // Dimensiunile fizice
     const labelWidth = 240;
     const labelHeight = 120;
     
-    // Creare canvas invizibil
     const canvas = document.createElement('canvas');
-    canvas.width = labelHeight; // Inversat pentru rotație
-    canvas.height = labelWidth; // Inversat pentru rotație
+    canvas.width = labelHeight;
+    canvas.height = labelWidth;
     const ctx = canvas.getContext('2d');
     
     ctx.fillStyle = 'black';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.save();
     ctx.translate(canvas.width / 2, canvas.height / 2);
-    ctx.rotate(90 * Math.PI / 180); // Rotim contextul
+    ctx.rotate(90 * Math.PI / 180);
     const verticalOffset = 10;
     
-    // Generare QR
+    logWithTimestamp(`generateLabelPackets: Generare cod QR...`);
     const qr = qrcode(0, 'M');
     qr.addData(textToPrint);
     qr.make();
     const qrImg = new Image();
     qrImg.src = qr.createDataURL(6, 2);
     
-    // Așteptăm ca imaginea QR să se încarce (acesta este un pas async)
+    logWithTimestamp(`generateLabelPackets: Așteptare încărcare imagine QR...`);
     await new Promise(resolve => { qrImg.onload = resolve; });
+    logWithTimestamp(`generateLabelPackets: Imagine QR încărcată. Desenare pe canvas...`);
     
-    // Desenare QR pe canvas
     const qrSize = 85; 
     ctx.drawImage(qrImg, -labelWidth / 2 + 15, -labelHeight / 2 + 18 + verticalOffset, qrSize, qrSize);
     
-    // Desenare Text pe canvas
     ctx.fillStyle = 'white';
     ctx.font = 'bold 24px Arial';
     ctx.textAlign = 'left';
@@ -165,13 +185,12 @@ async function generateLabelPackets(productCode, conditionLabel) {
     ctx.fillText(line1, -labelWidth / 2 + qrSize + 30, -15 + verticalOffset);
     ctx.fillText(line2, -labelWidth / 2 + qrSize + 30, 15 + verticalOffset);
     ctx.restore();
+    logWithTimestamp(`generateLabelPackets: Canvas desenat. Începere conversie bitmap...`);
     
-    // Conversia imaginii din canvas în pachete de date (bitmap)
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const imagePackets = [];
     const widthInBytes = Math.ceil(canvas.width / 8);
     
-    // Aceasta este bucla "grea" de conversie
     for (let y = 0; y < canvas.height; y++) {
         let lineBytes = new Uint8Array(widthInBytes);
         for (let x = 0; x < canvas.width; x++) {
@@ -186,25 +205,26 @@ async function generateLabelPackets(productCode, conditionLabel) {
         imagePackets.push(createNiimbotPacket(0x85, dataPayload));
     }
     
-    return imagePackets; // Returnăm pachetele de date gata generate
+    logWithTimestamp(`generateLabelPackets: Conversie bitmap finalizată. End pentru '${textToPrint}'`);
+    return imagePackets;
 }
-// --- FINAL MODIFICARE ---
 
 
 /**
  * Printează o etichetă.
- * (Modificată pentru a folosi cache-ul)
  */
 export async function printLabel(productCode, conditionLabel, quantity = 1) {
-    if (!isPrinterConnected()) throw new Error("Imprimanta nu este conectată.");
+    logWithTimestamp(`printLabel: Start pentru ${productCode} (${conditionLabel}), cant: ${quantity}`);
+    if (!isPrinterConnected()) {
+        logWithTimestamp(`printLabel: EROARE: Imprimanta nu este conectată. Stop.`);
+        throw new Error("Imprimanta nu este conectată.");
+    }
 
-    // --- START MODIFICARE: Folosim cache-ul ---
-    
-    // Mapăm conditionLabel (CN, FB, B) la cheia din cache (new, very-good, good)
     const conditionKeyMap = { 'CN': 'new', 'FB': 'very-good', 'B': 'good' };
     const cacheKey = conditionKeyMap[conditionLabel];
     
     if (!cacheKey) {
+        logWithTimestamp(`printLabel: EROARE: Condiție necunoscută ${conditionLabel}. Stop.`);
         throw new Error(`Condiție necunoscută pentru printare: ${conditionLabel}`);
     }
 
@@ -217,22 +237,28 @@ export async function printLabel(productCode, conditionLabel, quantity = 1) {
         let imagePackets;
         
         // 1. Verificăm cache-ul
+        logWithTimestamp(`printLabel: Verificare cache pentru ${productCode} - ${cacheKey}...`);
         if (printPacketCache.asin === productCode && printPacketCache.packets[cacheKey]) {
             // Folosim pachetele din cache. Acest pas e instantaneu.
             imagePackets = printPacketCache.packets[cacheKey];
+            logWithTimestamp(`printLabel: Cache HIT. Se folosesc pachetele pre-generate.`);
         } else {
-            // Cache-ul e invalid sau gol (pre-caching-ul a eșuat sau nu s-a terminat)
-            // Generăm pachetele "acum" (varianta lentă)
+            // Cache-ul e invalid sau gol
+            logWithTimestamp(`printLabel: Cache MISS. (Cache ASIN: ${printPacketCache.asin}, Cache Keys: ${Object.keys(printPacketCache.packets)})`);
+            logWithTimestamp(`printLabel: Se apelează 'generateLabelPackets' ACUM (proces lent)...`);
             showToast(`Generez datele pt ${productCode}...`);
             imagePackets = await generateLabelPackets(productCode, conditionLabel);
+            logWithTimestamp(`printLabel: Răspuns 'generateLabelPackets'. Se stochează în cache...`);
             // Stocăm în cache pentru viitor
             printPacketCache.asin = productCode;
             printPacketCache.packets[cacheKey] = imagePackets;
         }
 
         // 2. Trimitere comenzi (partea "ușoară" și rapidă)
-        const canvasWidth = 120; // Trebuie să știm asta
-        const canvasHeight = 240; // Și asta
+        const canvasWidth = 120;
+        const canvasHeight = 240;
+        
+        logWithTimestamp(`printLabel: Începere buclă de trimitere comenzi (writeAndDelay)...`);
         
         await writeAndDelay(createNiimbotPacket(0x21, [3]));
         await writeAndDelay(createNiimbotPacket(0x23, [1]));
@@ -243,40 +269,39 @@ export async function printLabel(productCode, conditionLabel, quantity = 1) {
         await writeAndDelay(createNiimbotPacket(0x13, dimensionData));
         await writeAndDelay(createNiimbotPacket(0x15, [0, quantity]));
         
-        // Trimiterea efectivă a pachetelor de imagine
+        logWithTimestamp(`printLabel: Trimitere pachete imagine (${imagePackets.length} pachete)...`);
         for (const packet of imagePackets) {
             await writeAndDelay(packet, 20); 
         }
+        logWithTimestamp(`printLabel: Pachete imagine trimise.`);
 
         await writeAndDelay(createNiimbotPacket(0xE3, [1]));
         await writeAndDelay(createNiimbotPacket(0xF3, [1]));
         
-    // --- FINAL MODIFICARE ---
+        logWithTimestamp(`printLabel: Comenzi finale trimise. End pentru ${productCode}`);
 
     } catch (error) {
         console.error(`Eroare critică la printarea etichetei: ${productCode}${conditionLabel}`, error);
+        logWithTimestamp(`printLabel: EROARE CRITICĂ: ${error.message}`);
         throw error;
     }
 }
 
-// --- START MODIFICARE: Adăugăm funcția de pre-caching ---
+
 /**
  * Funcție publică pentru a pre-genera etichete în fundal.
- * Va fi apelată de pe pagina produsului.
- * @param {string} asin - ASIN-ul produsului curent
  */
 export async function preCacheProductLabels(asin) {
-    // Dacă ASIN-ul e deja în cache, nu facem nimic
+    logWithTimestamp(`preCache: Start pentru ASIN: ${asin}`);
+    
     if (printPacketCache.asin === asin && printPacketCache.packets['new']) {
-        console.log("Etichetele sunt deja în cache pentru", asin);
+        logWithTimestamp(`preCache: Cache HIT. Pachetele sunt deja generate pentru ${asin}. Stop.`);
         return;
     }
     
-    // Resetăm cache-ul
+    logWithTimestamp(`preCache: Cache MISS sau incomplet. Resetare și începere generare...`);
     printPacketCache = { asin: asin, packets: {} };
-    console.log(`Încep pre-caching pentru ASIN: ${asin}...`);
 
-    // Definim mapările
     const conditionMap = {
         'new': 'CN',
         'very-good': 'FB',
@@ -284,24 +309,24 @@ export async function preCacheProductLabels(asin) {
     };
 
     try {
-        // Generăm în serie pentru a nu stresa browser-ul
         for (const key in conditionMap) {
             const conditionLabel = conditionMap[key];
-            // Rulăm generarea
+            logWithTimestamp(`preCache: Generare pentru ${key} ('${conditionLabel}')...`);
+            
             const packets = await generateLabelPackets(asin, conditionLabel);
-            // Salvăm în cache
+            
+            logWithTimestamp(`preCache: Stocare în cache pentru ${key}.`);
             printPacketCache.packets[key] = packets;
-            // Așteptăm un pic pentru a lăsa UI-ul să respire
-            await new Promise(res => setTimeout(res, 50));
+            
+            await new Promise(res => setTimeout(res, 50)); // Pauză mică
         }
-        console.log(`Pre-caching finalizat pentru ASIN: ${asin}`);
+        logWithTimestamp(`preCache: Finalizat cu succes pentru ASIN: ${asin}`);
     } catch (error) {
         console.error(`Eroare la pre-caching-ul etichetelor: ${error}`);
-        // Resetăm cache-ul în caz de eroare
+        logWithTimestamp(`preCache: EROARE: ${error.message}. Resetare cache.`);
         printPacketCache = { asin: null, packets: {} };
     }
 }
-// --- FINAL MODIFICARE ---
 
 
 /**
