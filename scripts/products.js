@@ -139,16 +139,30 @@ export async function initProductsPage() {
         });
 
         // --- START MODIFICARE (Sortare) ---
-        // Sortăm lista: produsele complete (found >= expected) merg la final
+// --- START MODIFICARE (Sortare) ---
+        // Sortăm lista
         filteredProducts.sort((a, b) => {
             const aComplete = Number(a.found) >= Number(a.expected);
             const bComplete = Number(b.found) >= Number(b.expected);
+
+            // 1. Logica principală: Produsele complete merg la final
+            const primarySort = aComplete - bComplete;
             
-            // aComplete (true=1, false=0) - bComplete (true=1, false=0)
-            // Daca 'a' e complet (1) si 'b' e incomplet (0), rezultatul e 1 (a merge dupa b)
-            // Daca 'a' e incomplet (0) si 'b' e complet (1), rezultatul e -1 (a merge inainte de b)
-            // Daca ambele sunt la fel (0-0 sau 1-1), rezultatul e 0 (ordine neschimbata)
-            return aComplete - bComplete; 
+            if (primarySort !== 0) {
+                // Unul este complet și celălalt nu, deci sortarea principală se aplică
+                return primarySort; 
+            }
+
+            // 2. Logica secundară: Ambele sunt la fel (fie complete, fie incomplete)
+            
+            // Dacă ambele sunt INCOMPLETE (!aComplete este adevărat)
+            if (!aComplete) {
+                // Le sortăm descrescător după cantitatea 'expected'
+                return Number(b.expected) - Number(a.expected);
+            }
+            
+            // Altfel, ambele sunt complete. Nu se aplică o sortare suplimentară.
+            return 0;
         });
         // --- FINAL MODIFICARE (Sortare) ---
 
@@ -206,3 +220,4 @@ export async function initProductsPage() {
 
     await renderProductsList(); // Apelăm funcția de randare
 }
+
