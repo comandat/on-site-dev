@@ -130,28 +130,33 @@ async function handleSaveChanges() {
         }
     }
 
-    if (!hasChanges) {
+if (!hasChanges) {
         hideModal();
         return;
     }
 
-    const success = await sendStockUpdate(currentCommandId, productAsinForPrinting, delta);
-    
-    if (success) {
-        await fetchDataAndSyncState();
-        renderPageContent();
-        const conditionMap = { 'new': 'CN', 'very-good': 'FB', 'good': 'B' };
-        const printQueue = [];
-        for (const condition in delta) {
-            if (delta[condition] > 0 && conditionMap[condition]) {
-                printQueue.push({
-                    code: productAsinForPrinting,
-                    conditionLabel: conditionMap[condition],
-                    quantity: delta[condition]
-                });
-            }
+    // --- START MODIFICARE: Rulare optimistă în paralel ---
+
+    // 1. Pregătim coada de printare IMEDIAT
+    const conditionMap = { 'new': 'CN', 'very-good': 'FB', 'good': 'B' };
+    const printQueue = [];
+    for (const condition in delta) {
+        if (delta[condition] > 0 && conditionMap[condition]) {
+            printQueue.push({
+                code: productAsinForPrinting,
+                conditionLabel: conditionMap[condition],
+                quantity: delta[condition]
+            });
         }
-        hideModal();
+    }
+
+    // 2. Închidem modal-ul (răspuns UI instantaneu)
+    hideModal();
+
+    // 3. Pornim printarea (Task 1, rulează în fundal, FĂRĂ await)
+    // Folosim o funcție IIFE (Immediately Invoked Function Expression)
+    // pentru a gestiona erorile de printare separat.
+    (async () => {
         if (printQueue.length > 0) {
             const totalLabels = printQueue.reduce((sum, item) => sum + item.quantity, 0);
             showToast(`Se inițiază imprimarea pentru ${totalLabels} etichete...`);
@@ -163,16 +168,36 @@ async function handleSaveChanges() {
                 } catch (e) {
                     showToast(`Eroare la imprimare. Procesul s-a oprit.`);
                     console.error("Eroare la imprimare:", e);
-                    return;
+                    // Oprește doar funcția de printare, salvarea continuă
+                    return; 
                 }
             }
             showToast(`S-a finalizat imprimarea.`);
         }
-    } else {
-        alert('Eroare la salvare! Vă rugăm încercați din nou.');
-        saveButton.disabled = false;
-        saveButton.textContent = 'Salvează';
-    }
+    })(); // Parantezele () de la final execută funcția imediat
+
+    // 4. Pornim salvarea și sincronizarea (Task 2, rulează în fundal)
+    // La fel, folosim IIFE pentru a gestiona erorile de salvare separat.
+    (async () => {
+        try {
+            const success = await sendStockUpdate(currentCommandId, productAsinForPrinting, delta);
+            
+            if (success) {
+                // Salvat cu succes, acum sincronizăm
+                await fetchDataAndSyncState();
+                renderPageContent(); // Actualizăm UI-ul cu noile date
+            } else {
+                // Salvarea a eșuat
+                alert('EROARE la salvarea datelor! Etichetele s-ar putea să se fi printat, dar datele nu s-au salvat. Vă rugăm verificați stocul.');
+                // Nu mai putem reseta butonul 'saveButton' pentru că modal-ul e deja închis
+            }
+        } catch (error) {
+            console.error("Eroare la salvare/sincronizare:", error);
+            alert(`EROARE CRITICĂ la salvarea datelor: ${error.message}.`);
+        }
+    })();
+
+    // --- FINAL MODIFICARE ---
 }
 
 function showPrinterModal() {
@@ -431,3 +456,4 @@ export async function initProductDetailPage(context = {}, openSearch) {
     }
     // --- FINAL FIX ---
 }
+
