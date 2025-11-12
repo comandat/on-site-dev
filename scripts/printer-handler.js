@@ -7,6 +7,15 @@ let niimbotCharacteristic = null;
 let isConnecting = false;
 let printerDevice = null;
 
+// --- START MODIFICARE ---
+// Adăugăm un cache pentru pachetele de date pre-generate
+let printPacketCache = {
+    asin: null,
+    packets: {} // Aici vom stoca 'new', 'very-good', 'good'
+};
+// --- FINAL MODIFICARE ---
+
+
 /**
  * Afișează un mesaj scurt (toast) în partea de jos a ecranului.
  */
@@ -106,91 +115,194 @@ export async function discoverAndConnect(statusCallback) {
     }
 }
 
+// --- START MODIFICARE: Extragem logica "grea" într-o funcție separată ---
+
+/**
+ * Partea "grea": Generează pachetele de date pentru o etichetă.
+ * Aceasta este funcția care consumă timp (creare QR, canvas, bitmap).
+ */
+async function generateLabelPackets(productCode, conditionLabel) {
+    const textToPrint = `${productCode}${conditionLabel}`;
+    
+    // Dimensiunile fizice
+    const labelWidth = 240;
+    const labelHeight = 120;
+    
+    // Creare canvas invizibil
+    const canvas = document.createElement('canvas');
+    canvas.width = labelHeight; // Inversat pentru rotație
+    canvas.height = labelWidth; // Inversat pentru rotație
+    const ctx = canvas.getContext('2d');
+    
+    ctx.fillStyle = 'black';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.rotate(90 * Math.PI / 180); // Rotim contextul
+    const verticalOffset = 10;
+    
+    // Generare QR
+    const qr = qrcode(0, 'M');
+    qr.addData(textToPrint);
+    qr.make();
+    const qrImg = new Image();
+    qrImg.src = qr.createDataURL(6, 2);
+    
+    // Așteptăm ca imaginea QR să se încarce (acesta este un pas async)
+    await new Promise(resolve => { qrImg.onload = resolve; });
+    
+    // Desenare QR pe canvas
+    const qrSize = 85; 
+    ctx.drawImage(qrImg, -labelWidth / 2 + 15, -labelHeight / 2 + 18 + verticalOffset, qrSize, qrSize);
+    
+    // Desenare Text pe canvas
+    ctx.fillStyle = 'white';
+    ctx.font = 'bold 24px Arial';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    const line1 = textToPrint.substring(0, 6);
+    const line2 = textToPrint.substring(6);
+    ctx.fillText(line1, -labelWidth / 2 + qrSize + 30, -15 + verticalOffset);
+    ctx.fillText(line2, -labelWidth / 2 + qrSize + 30, 15 + verticalOffset);
+    ctx.restore();
+    
+    // Conversia imaginii din canvas în pachete de date (bitmap)
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const imagePackets = [];
+    const widthInBytes = Math.ceil(canvas.width / 8);
+    
+    // Aceasta este bucla "grea" de conversie
+    for (let y = 0; y < canvas.height; y++) {
+        let lineBytes = new Uint8Array(widthInBytes);
+        for (let x = 0; x < canvas.width; x++) {
+            const pixelIndex = (y * canvas.width + x) * 4;
+            const pixelValue = imageData.data[pixelIndex] > 128 ? 1 : 0;
+            if (pixelValue === 1) {
+                lineBytes[Math.floor(x / 8)] |= (1 << (7 - (x % 8)));
+            }
+        }
+        const header = [(y >> 8) & 0xFF, y & 0xFF, 0, 0, 0, 1];
+        const dataPayload = Array.from(new Uint8Array([...header, ...lineBytes]));
+        imagePackets.push(createNiimbotPacket(0x85, dataPayload));
+    }
+    
+    return imagePackets; // Returnăm pachetele de date gata generate
+}
+// --- FINAL MODIFICARE ---
+
+
 /**
  * Printează o etichetă.
+ * (Modificată pentru a folosi cache-ul)
  */
 export async function printLabel(productCode, conditionLabel, quantity = 1) {
     if (!isPrinterConnected()) throw new Error("Imprimanta nu este conectată.");
 
-    const textToPrint = `${productCode}${conditionLabel}`;
+    // --- START MODIFICARE: Folosim cache-ul ---
     
+    // Mapăm conditionLabel (CN, FB, B) la cheia din cache (new, very-good, good)
+    const conditionKeyMap = { 'CN': 'new', 'FB': 'very-good', 'B': 'good' };
+    const cacheKey = conditionKeyMap[conditionLabel];
+    
+    if (!cacheKey) {
+        throw new Error(`Condiție necunoscută pentru printare: ${conditionLabel}`);
+    }
+
     const writeAndDelay = async (packet, ms = 40) => {
         await niimbotCharacteristic.writeValueWithoutResponse(packet);
         await new Promise(res => setTimeout(res, ms));
     };
 
     try {
-        const labelWidth = 240;
-        const labelHeight = 120;
-        const canvas = document.createElement('canvas');
-        canvas.width = labelHeight;
-        canvas.height = labelWidth;
-        const ctx = canvas.getContext('2d');
+        let imagePackets;
         
-        ctx.fillStyle = 'black';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.save();
-        ctx.translate(canvas.width / 2, canvas.height / 2);
-        ctx.rotate(90 * Math.PI / 180);
-        const verticalOffset = 10;
-        
-        const qr = qrcode(0, 'M');
-        qr.addData(textToPrint);
-        qr.make();
-        const qrImg = new Image();
-        qrImg.src = qr.createDataURL(6, 2);
-        await new Promise(resolve => { qrImg.onload = resolve; });
-        
-        const qrSize = 85; 
-        ctx.drawImage(qrImg, -labelWidth / 2 + 15, -labelHeight / 2 + 18 + verticalOffset, qrSize, qrSize);
-        ctx.fillStyle = 'white';
-        ctx.font = 'bold 24px Arial';
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'middle';
-        const line1 = textToPrint.substring(0, 6);
-        const line2 = textToPrint.substring(6);
-        ctx.fillText(line1, -labelWidth / 2 + qrSize + 30, -15 + verticalOffset);
-        ctx.fillText(line2, -labelWidth / 2 + qrSize + 30, 15 + verticalOffset);
-        ctx.restore();
-        
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const imagePackets = [];
-        const widthInBytes = Math.ceil(canvas.width / 8);
-        for (let y = 0; y < canvas.height; y++) {
-            let lineBytes = new Uint8Array(widthInBytes);
-            for (let x = 0; x < canvas.width; x++) {
-                const pixelIndex = (y * canvas.width + x) * 4;
-                const pixelValue = imageData.data[pixelIndex] > 128 ? 1 : 0;
-                if (pixelValue === 1) {
-                    lineBytes[Math.floor(x / 8)] |= (1 << (7 - (x % 8)));
-                }
-            }
-            const header = [(y >> 8) & 0xFF, y & 0xFF, 0, 0, 0, 1];
-            const dataPayload = Array.from(new Uint8Array([...header, ...lineBytes]));
-            imagePackets.push(createNiimbotPacket(0x85, dataPayload));
+        // 1. Verificăm cache-ul
+        if (printPacketCache.asin === productCode && printPacketCache.packets[cacheKey]) {
+            // Folosim pachetele din cache. Acest pas e instantaneu.
+            imagePackets = printPacketCache.packets[cacheKey];
+        } else {
+            // Cache-ul e invalid sau gol (pre-caching-ul a eșuat sau nu s-a terminat)
+            // Generăm pachetele "acum" (varianta lentă)
+            showToast(`Generez datele pt ${productCode}...`);
+            imagePackets = await generateLabelPackets(productCode, conditionLabel);
+            // Stocăm în cache pentru viitor
+            printPacketCache.asin = productCode;
+            printPacketCache.packets[cacheKey] = imagePackets;
         }
 
+        // 2. Trimitere comenzi (partea "ușoară" și rapidă)
+        const canvasWidth = 120; // Trebuie să știm asta
+        const canvasHeight = 240; // Și asta
+        
         await writeAndDelay(createNiimbotPacket(0x21, [3]));
         await writeAndDelay(createNiimbotPacket(0x23, [1]));
         await writeAndDelay(createNiimbotPacket(0x01, [1]));
         await writeAndDelay(createNiimbotPacket(0x03, [1]));
         
-        const dimensionData = [(canvas.height >> 8) & 0xFF, canvas.height & 0xFF, (canvas.width >> 8) & 0xFF, canvas.width & 0xFF];
+        const dimensionData = [(canvasHeight >> 8) & 0xFF, canvasHeight & 0xFF, (canvasWidth >> 8) & 0xFF, canvasWidth & 0xFF];
         await writeAndDelay(createNiimbotPacket(0x13, dimensionData));
         await writeAndDelay(createNiimbotPacket(0x15, [0, quantity]));
         
+        // Trimiterea efectivă a pachetelor de imagine
         for (const packet of imagePackets) {
             await writeAndDelay(packet, 20); 
         }
 
         await writeAndDelay(createNiimbotPacket(0xE3, [1]));
         await writeAndDelay(createNiimbotPacket(0xF3, [1]));
+        
+    // --- FINAL MODIFICARE ---
 
     } catch (error) {
-        console.error(`Eroare critică la printarea etichetei: ${textToPrint}`, error);
+        console.error(`Eroare critică la printarea etichetei: ${productCode}${conditionLabel}`, error);
         throw error;
     }
 }
+
+// --- START MODIFICARE: Adăugăm funcția de pre-caching ---
+/**
+ * Funcție publică pentru a pre-genera etichete în fundal.
+ * Va fi apelată de pe pagina produsului.
+ * @param {string} asin - ASIN-ul produsului curent
+ */
+export async function preCacheProductLabels(asin) {
+    // Dacă ASIN-ul e deja în cache, nu facem nimic
+    if (printPacketCache.asin === asin && printPacketCache.packets['new']) {
+        console.log("Etichetele sunt deja în cache pentru", asin);
+        return;
+    }
+    
+    // Resetăm cache-ul
+    printPacketCache = { asin: asin, packets: {} };
+    console.log(`Încep pre-caching pentru ASIN: ${asin}...`);
+
+    // Definim mapările
+    const conditionMap = {
+        'new': 'CN',
+        'very-good': 'FB',
+        'good': 'B'
+    };
+
+    try {
+        // Generăm în serie pentru a nu stresa browser-ul
+        for (const key in conditionMap) {
+            const conditionLabel = conditionMap[key];
+            // Rulăm generarea
+            const packets = await generateLabelPackets(asin, conditionLabel);
+            // Salvăm în cache
+            printPacketCache.packets[key] = packets;
+            // Așteptăm un pic pentru a lăsa UI-ul să respire
+            await new Promise(res => setTimeout(res, 50));
+        }
+        console.log(`Pre-caching finalizat pentru ASIN: ${asin}`);
+    } catch (error) {
+        console.error(`Eroare la pre-caching-ul etichetelor: ${error}`);
+        // Resetăm cache-ul în caz de eroare
+        printPacketCache = { asin: null, packets: {} };
+    }
+}
+// --- FINAL MODIFICARE ---
+
 
 /**
  * Încearcă să se reconecteze automat la ultima imprimantă cunoscută.
