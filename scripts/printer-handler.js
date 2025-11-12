@@ -228,7 +228,7 @@ export async function printLabel(productCode, conditionLabel, quantity = 1) {
         throw new Error(`Condiție necunoscută pentru printare: ${conditionLabel}`);
     }
 
-    const writeAndDelay = async (packet, ms = 40) => {
+    const writeAndDelay = async (packet, ms = 5) => {
         await niimbotCharacteristic.writeValueWithoutResponse(packet);
         await new Promise(res => setTimeout(res, ms));
     };
