@@ -5,23 +5,17 @@ import { initPalletsPage } from './pallets.js';
 import { initProductsPage } from './products.js';
 import { initProductDetailPage } from './product-detail.js';
 import { initAddProductPage } from './add-product.js';
-
-// --- START FIX: Am adăugat la loc import-urile ---
 import { initSearchHandler } from './search-handler.js';
 import { AppState } from './data.js';
 import { showToast } from './printer-handler.js';
-// --- FINAL FIX ---
 
-// --- START FIX: Am adăugat la loc openSearchFunction ---
+// --- MODIFICARE: Importăm scannerul hardware ---
+import { initHardwareScanner } from './hardware-scanner.js';
+// --- FINAL MODIFICARE ---
+
 let openSearchFunction = () => {};
-// --- FINAL FIX ---
 let pages = {};
 
-/**
- * Funcția centrală de navigare.
- * @param {string} pageId - ID-ul paginii (ex: 'commands', 'pallets')
- * @param {object} context - Date suplimentare de trimis paginii (ex: { search: true })
- */
 function navigateTo(pageId, context = {}) {
     // Ascunde toate paginile
     Object.values(pages).forEach(page => page.classList.add('hidden'));
@@ -47,9 +41,7 @@ function navigateTo(pageId, context = {}) {
                 initProductsPage();
                 break;
             case 'product-detail':
-                // --- START FIX: Am adăugat la loc parametrul openSearchFunction ---
                 initProductDetailPage(context, openSearchFunction);
-                // --- FINAL FIX ---
                 break;
             case 'add-product':
                 initAddProductPage();
@@ -64,9 +56,6 @@ function navigateTo(pageId, context = {}) {
     }
 }
 
-/**
- * Actualizează care buton din footer este marcat ca "activ".
- */
 function updateFooterActiveState(activePageId) {
     document.querySelectorAll('footer [data-nav]').forEach(button => {
         const page = button.dataset.nav;
@@ -93,34 +82,32 @@ function updateFooterActiveState(activePageId) {
 }
 
 
-/**
- * Gestionează încărcarea paginii pe baza hash-ului din URL.
- */
 function handleHashChange() {
     const pageId = window.location.hash.substring(1);
     if (pageId && pages[pageId]) {
         navigateTo(pageId);
     } else {
-        // Pagină implicită
         navigateTo('commands');
     }
 }
 
-// Expune router-ul pentru a fi folosit de alte module
 export const router = {
     navigateTo
 };
 
-// --- Logica Scanner-ului LPN (Rămâne neschimbată) ---
+// --- Logica Scanner-ului LPN ---
 
 const SCAN_WEBHOOK_URL = 'https://automatizare.comandat.ro/webhook/find-product-by-lpn';
 let html5QrCode = null;
 
-async function onScanSuccess(decodedText, decodedResult) {
-    stopScanner();
-    showToast('Cod scanat. Se caută produsul...');
+// --- MODIFICARE: Funcție comună pentru procesarea LPN (folosită de ambele scannere) ---
+async function processLpnCode(lpnCode) {
+    // Curățăm codul de spații
+    const cleanLpn = lpnCode.trim();
+    showToast(`Se caută LPN: ${cleanLpn}...`);
+    
     try {
-        const response = await fetch(`${SCAN_WEBHOOK_URL}?lpn=${decodedText}`, {
+        const response = await fetch(`${SCAN_WEBHOOK_URL}?lpn=${cleanLpn}`, {
             method: 'GET',
         });
         if (!response.ok) throw new Error('Eroare de rețea sau LPN negăsit.');
@@ -167,6 +154,14 @@ async function onScanSuccess(decodedText, decodedResult) {
         showToast(error.message, 5000);
     }
 }
+// --- FINAL MODIFICARE ---
+
+async function onScanSuccess(decodedText, decodedResult) {
+    stopScanner();
+    // --- MODIFICARE: Apelăm funcția comună ---
+    await processLpnCode(decodedText);
+    // --- FINAL MODIFICARE ---
+}
 
 function onScanFailure(error) { /* Nu face nimic */ }
 
@@ -211,25 +206,24 @@ function initScannerHandler() {
         }
     });
 }
-// --- Final Logica Scanner-ului ---
 
 
 // --- Inițializarea aplicației ---
 document.addEventListener('DOMContentLoaded', () => {
-    // Colectează toate elementele paginii
     document.querySelectorAll('[data-page]').forEach(page => {
         pages[page.dataset.page] = page;
     });
 
-    // Încearcă reconectarea automată la imprimantă
     autoConnectToPrinter();
     
-    // --- START FIX: Inițializează AMBELE handlere ---
-    openSearchFunction = initSearchHandler(navigateTo); // Pentru Căutarea manuală
-    initScannerHandler(); // Pentru Scanner-ul LPN
-    // --- FINAL FIX ---
+    openSearchFunction = initSearchHandler(navigateTo); 
+    initScannerHandler(); 
 
-    // Adaugă listener global pentru butoanele de navigație [data-nav] (ex: footere)
+    // --- MODIFICARE: Inițializăm scannerul hardware global ---
+    // Îi pasăm funcția processLpnCode pentru a fi executată la detectarea unui cod "L..."
+    initHardwareScanner(processLpnCode);
+    // --- FINAL MODIFICARE ---
+
     document.body.addEventListener('click', (e) => {
         const navButton = e.target.closest('[data-nav]');
         if (navButton) {
@@ -239,9 +233,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Gestionează navigarea prin butoanele back/forward ale browser-ului
     window.addEventListener('hashchange', handleHashChange);
     
-    // Încarcă pagina inițială
     handleHashChange();
 });
