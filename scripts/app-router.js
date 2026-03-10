@@ -1,41 +1,26 @@
-// scripts/app-router.js
 import { autoConnectToPrinter } from './printer-handler.js';
 import { initCommandsPage } from './main.js';
 import { initPalletsPage } from './pallets.js';
 import { initProductsPage } from './products.js';
 import { initProductDetailPage } from './product-detail.js';
 import { initAddProductPage } from './add-product.js';
-
-// --- START FIX: Am adăugat la loc import-urile ---
 import { initSearchHandler } from './search-handler.js';
 import { AppState } from './data.js';
 import { showToast } from './printer-handler.js';
-// --- FINAL FIX ---
 
-// --- START FIX: Am adăugat la loc openSearchFunction ---
 let openSearchFunction = () => {};
-// --- FINAL FIX ---
 let pages = {};
 
-/**
- * Funcția centrală de navigare.
- * @param {string} pageId - ID-ul paginii (ex: 'commands', 'pallets')
- * @param {object} context - Date suplimentare de trimis paginii (ex: { search: true })
- */
 function navigateTo(pageId, context = {}) {
-    // Ascunde toate paginile
     Object.values(pages).forEach(page => page.classList.add('hidden'));
 
-    // Găsește și afișează pagina țintă
     const targetPage = pages[pageId];
     if (targetPage) {
         targetPage.classList.remove('hidden');
-        window.scrollTo(0, 0); // Resetează scroll-ul
+        window.scrollTo(0, 0);
         
-        // Setează hash-ul pentru a permite navigarea back/forward
         window.location.hash = pageId;
 
-        // Rulează funcția de inițializare specifică paginii
         switch (pageId) {
             case 'commands':
                 initCommandsPage();
@@ -47,16 +32,13 @@ function navigateTo(pageId, context = {}) {
                 initProductsPage();
                 break;
             case 'product-detail':
-                // --- START FIX: Am adăugat la loc parametrul openSearchFunction ---
                 initProductDetailPage(context, openSearchFunction);
-                // --- FINAL FIX ---
                 break;
             case 'add-product':
                 initAddProductPage();
                 break;
         }
         
-        // Actualizează starea activă a footer-ului
         updateFooterActiveState(pageId);
 
     } else {
@@ -64,18 +46,13 @@ function navigateTo(pageId, context = {}) {
     }
 }
 
-/**
- * Actualizează care buton din footer este marcat ca "activ".
- */
 function updateFooterActiveState(activePageId) {
     document.querySelectorAll('footer [data-nav]').forEach(button => {
         const page = button.dataset.nav;
 
-        // Reset
         button.classList.remove('text-[var(--primary-color)]');
         button.classList.add('text-gray-500', 'hover:text-[var(--primary-color)]');
 
-        // Set active
         if (page === activePageId || (activePageId.includes('product') && page === 'products')) {
              button.classList.add('text-[var(--primary-color)]');
              button.classList.remove('text-gray-500', 'hover:text-[var(--primary-color)]');
@@ -92,26 +69,18 @@ function updateFooterActiveState(activePageId) {
     });
 }
 
-
-/**
- * Gestionează încărcarea paginii pe baza hash-ului din URL.
- */
 function handleHashChange() {
     const pageId = window.location.hash.substring(1);
     if (pageId && pages[pageId]) {
         navigateTo(pageId);
     } else {
-        // Pagină implicită
         navigateTo('commands');
     }
 }
 
-// Expune router-ul pentru a fi folosit de alte module
 export const router = {
     navigateTo
 };
-
-// --- Logica Scanner-ului LPN (Rămâne neschimbată) ---
 
 const SCAN_WEBHOOK_URL = 'https://automatizare.comandat.ro/webhook/find-product-by-lpn';
 let html5QrCode = null;
@@ -168,7 +137,7 @@ async function onScanSuccess(decodedText, decodedResult) {
     }
 }
 
-function onScanFailure(error) { /* Nu face nimic */ }
+function onScanFailure(error) { }
 
 function startScanner() {
     const scannerContainer = document.getElementById('scanner-container');
@@ -211,25 +180,52 @@ function initScannerHandler() {
         }
     });
 }
-// --- Final Logica Scanner-ului ---
 
+function initHardwareScannerHandler() {
+    let scanBuffer = "";
+    let lastKeyTime = 0;
 
-// --- Inițializarea aplicației ---
+    document.addEventListener("keydown", (e) => {
+        const now = Date.now();
+        scanBuffer = now - lastKeyTime > 300 ? "" : scanBuffer;
+        lastKeyTime = now;
+
+        if (e.key === "Enter") {
+            if (scanBuffer.length > 2) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const scannedCode = scanBuffer.trim();
+                scanBuffer = "";
+                
+                if (document.activeElement && document.activeElement.tagName === 'INPUT') {
+                    document.activeElement.blur();
+                }
+
+                console.log("Cod preluat de la scanerul hardware:", scannedCode);
+                onScanSuccess(scannedCode);
+            }
+            scanBuffer = "";
+            return;
+        }
+
+        if (!["Unidentified", "Shift", "Control", "Alt", "Meta", "CapsLock", "Tab"].includes(e.key)) {
+            scanBuffer += e.key;
+        }
+    });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
-    // Colectează toate elementele paginii
     document.querySelectorAll('[data-page]').forEach(page => {
         pages[page.dataset.page] = page;
     });
 
-    // Încearcă reconectarea automată la imprimantă
     autoConnectToPrinter();
     
-    // --- START FIX: Inițializează AMBELE handlere ---
-    openSearchFunction = initSearchHandler(navigateTo); // Pentru Căutarea manuală
-    initScannerHandler(); // Pentru Scanner-ul LPN
-    // --- FINAL FIX ---
+    openSearchFunction = initSearchHandler(navigateTo);
+    initScannerHandler();
+    initHardwareScannerHandler();
 
-    // Adaugă listener global pentru butoanele de navigație [data-nav] (ex: footere)
     document.body.addEventListener('click', (e) => {
         const navButton = e.target.closest('[data-nav]');
         if (navButton) {
@@ -239,9 +235,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Gestionează navigarea prin butoanele back/forward ale browser-ului
     window.addEventListener('hashchange', handleHashChange);
     
-    // Încarcă pagina inițială
     handleHashChange();
 });
