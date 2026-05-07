@@ -1,7 +1,7 @@
 // scripts/add-product.js
 import { AppState } from './data.js';
 
-const ADD_PRODUCT_WEBHOOK_URL = 'https://automatizare.comandat.ro/webhook/830c352e-a708-4f6e-873a-941574326b82';
+const ADD_PRODUCT_WEBHOOK_URL = 'https://automatizare.comandat.ro/webhook/v2-register-product';
 let formListenerAttached = false; // Flag pentru a atașa listener-ul o singură dată
 
 // 1. Populează lista de comenzi
@@ -42,11 +42,10 @@ async function handleFormSubmit(event) {
     const statusMessage = document.getElementById('status-message');
 
     const asin = asinInput.value.trim();
-    const country = countrySelect.value;
     const orderId = commandSelect.value;
     const manifestsku = manifestskuInput.value.trim();
 
-    if (!asin || !orderId || !country || !manifestsku) {
+    if (!asin || !orderId || !manifestsku) {
         statusMessage.textContent = 'Te rugăm să completezi toate câmpurile.';
         statusMessage.className = 'text-red-600 text-center text-sm font-medium';
         return;
@@ -61,10 +60,8 @@ async function handleFormSubmit(event) {
 
     try {
         const payload = {
-            asin: asin,
-            orderId: orderId,
-            country: country,
-            manifestsku: manifestsku
+            asin_nou: asin,
+            updateQuery: `INSERT INTO manifests."${orderId}" (asin, orderedquantity, suggestedcondition, manifestsku, barcode, productsku, grade, bncondition, vgcondition, gcondition, broken, unitcostwithoutvat, unitcostwithvat, totalcostwithvat, totalcostwithoutvat) VALUES ('${asin}', 0, 'New Entry', '${manifestsku}', NULL, '${asin}-${manifestsku}-MANUAL', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)`
         };
 
         const response = await fetch(ADD_PRODUCT_WEBHOOK_URL, {

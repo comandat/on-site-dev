@@ -2,7 +2,7 @@
 
 // --- CONFIGURARE WEBHOOKS ---
 const DATA_FETCH_URL = 'https://automatizare.comandat.ro/webhook/5a447557-8d52-463e-8a26-5902ccee8177';
-const PRODUCT_DETAILS_URL = 'https://automatizare.comandat.ro/webhook/f1bb3c1c-3730-4672-b989-b3e73b911043';
+const PRODUCT_DETAILS_URL = 'https://automatizare.comandat.ro/webhook/v2-product-details';
 const STOCK_UPDATE_URL = 'https://automatizare.comandat.ro/webhook/4bef3762-2d4f-437d-a05c-001ccb597ab9';
 export const FIX_DUPLICATE_SKU_URL = 'https://automatizare.comandat.ro/webhook/fix-duplicate-sku';
 
@@ -126,7 +126,7 @@ export async function fetchProductDetailsInBulk(asins) {
         if (!response.ok) throw new Error(`Network response was not ok`);
         
         const responseData = await response.json();
-        const bulkData = responseData.products || responseData;
+        const bulkData = responseData.get_product_details_v2 || responseData.products || responseData;
 
         for (const asin of asinsToFetch) {
             const productData = bulkData[asin] || { title: 'Nume indisponibil', images: [] };

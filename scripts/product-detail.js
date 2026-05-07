@@ -2,7 +2,7 @@ import { AppState, fetchDataAndSyncState, sendStockUpdate, fetchProductDetailsIn
 import { router } from './app-router.js';
 import { isPrinterConnected, discoverAndConnect, printLabel, showToast, preCacheProductLabels } from './printer-handler.js';
 
-const TITLE_UPDATE_URL = 'https://automatizare.comandat.ro/webhook/0d61e5a2-2fb8-4219-b80a-a75999dd32fc';
+const TITLE_UPDATE_URL = 'https://automatizare.comandat.ro/webhook/v2-update-product';
 
 let currentCommandId = null, currentProductId = null, currentProduct = null;
 let swiper = null, pressTimer = null, clickHandler = null;
@@ -70,14 +70,13 @@ const handleTitleEdit = async () => {
         const response = await fetch(TITLE_UPDATE_URL, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ asin: currentProduct.asin, title: newTitle })
+            body: JSON.stringify({ asin: currentProduct.asin, updatedData: { title: newTitle } })
         });
-        const result = await response.json();
-        if (result.status === 'success') {
+        if (response.ok) {
             sessionStorage.removeItem(`product_${currentProduct.asin}`);
             showToast('Titlu salvat. Se reîncarcă detaliile...');
             await initializePageContent();
-        } else throw new Error(result.message || 'Eroare de la server.');
+        } else throw new Error(`Eroare HTTP: ${response.status}`);
     } catch (error) {
         showToast(`Eroare: ${error.message}`, 4000);
     } finally {
