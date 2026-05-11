@@ -66,7 +66,7 @@ export async function fetchDataAndSyncState() {
     }
 }
 
-export async function sendStockUpdate(commandId, productSku, productAsin, manifestSku, stockDelta) {
+export async function sendStockUpdate(commandId, productSku, productAsin, stockDelta) {
     const changes = [];
     for (const condition in stockDelta) {
         const value = stockDelta[condition];
@@ -82,8 +82,7 @@ export async function sendStockUpdate(commandId, productSku, productAsin, manife
 
     const payload = {
         orderId: commandId,
-        productsku: productSku || productAsin,
-        manifestsku: manifestSku || null,
+        productsku: productSku,
         asin: productAsin,
         changes: changes
     };

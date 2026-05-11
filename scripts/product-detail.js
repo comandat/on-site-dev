@@ -125,7 +125,7 @@ const handleSaveChanges = () => {
 
     (async () => {
         try {
-            if (await sendStockUpdate(currentCommandId, currentProduct.id, asin, currentProduct.manifestsku, delta)) {
+            if (await sendStockUpdate(currentCommandId, currentProduct.id, asin, delta)) {
                 await fetchDataAndSyncState();
                 renderPageContent();
             } else alert('EROARE la salvarea datelor!');
@@ -328,7 +328,7 @@ export const initProductDetailPage = async (context = {}, openSearch) => {
 
             (async () => {
                 try {
-                    if (await sendStockUpdate(currentCommandId, currentProduct.id, asin, currentProduct.manifestsku, { new: 1 })) {
+                    if (await sendStockUpdate(currentCommandId, currentProduct.id, asin, { new: 1 })) {
                         await fetchDataAndSyncState();
                         renderPageContent();
                     } else alert('EROARE la salvarea datelor!');
