@@ -7,26 +7,53 @@ export function initSearchHandler(navigateTo) {
     const searchTriggerButton = document.getElementById('search-trigger-button');
     const searchOverlay = document.getElementById('search-overlay');
 
-    let openSearch; // Declarăm funcția aici
+    let openSearch;
+    let cachedProducts = null; // încărcat o singură dată per sesiune
 
     if (searchTriggerButton && searchOverlay && pageContent) {
         const closeSearch = () => {
             searchOverlay.classList.add('hidden');
             searchOverlay.innerHTML = '';
-            pageContent.style.filter = 'none'; // Folosim containerul specific
+            pageContent.style.filter = 'none';
         };
 
         const selectProduct = (commandId, productId) => {
             sessionStorage.setItem('currentCommandId', commandId);
             sessionStorage.setItem('currentProductId', productId);
-            
-            // Folosim router-ul în loc de reload
             navigateTo('product-detail');
-            closeSearch(); // Închidem overlay-ul după selecție
+            closeSearch();
+        };
+
+        const renderResults = (resultsContainer, query) => {
+            if (query.length < 2) {
+                resultsContainer.innerHTML = '<p class="text-gray-500 text-center">Introduceți cel puțin 2 caractere.</p>';
+                return;
+            }
+            const filtered = cachedProducts.filter(p =>
+                p.details.title.toLowerCase().includes(query) ||
+                p.asin.toLowerCase().includes(query)
+            );
+            if (filtered.length === 0) {
+                resultsContainer.innerHTML = '<p class="text-gray-500 text-center">Niciun produs găsit.</p>';
+                return;
+            }
+            resultsContainer.innerHTML = filtered.map(product => `
+                <div class="flex items-center gap-4 p-2 transition-colors rounded-lg cursor-pointer hover:bg-gray-100 search-result-item" data-command-id="${product.commandId}" data-product-id="${product.id}">
+                    <img alt="${product.details.title}" class="h-12 w-12 rounded-md object-cover bg-gray-200" src="${product.details.images[0] || ''}" />
+                    <div class="flex-1 min-w-0">
+                        <p class="font-medium text-gray-900 line-clamp-2">${product.details.title}</p>
+                        <p class="text-sm text-gray-500">Comanda: ${product.commandName.replace('Comanda #', '#')}</p>
+                        <p class="text-xs text-gray-400 font-mono truncate">${product.asin}</p>
+                    </div>
+                </div>
+            `).join('');
+            resultsContainer.querySelectorAll('.search-result-item').forEach(item => {
+                item.addEventListener('click', () => selectProduct(item.dataset.commandId, item.dataset.productId));
+            });
         };
 
         openSearch = async () => {
-            pageContent.style.filter = 'blur(5px)'; // Folosim containerul specific
+            pageContent.style.filter = 'blur(5px)';
             searchOverlay.classList.remove('hidden');
             searchOverlay.innerHTML = `
                 <div class="absolute inset-0 bg-gray-900 bg-opacity-50" id="search-bg"></div>
@@ -46,18 +73,22 @@ export function initSearchHandler(navigateTo) {
 
             const searchInput = document.getElementById('search-input');
             const resultsContainer = document.getElementById('search-results-container');
-            const closeButton = document.getElementById('close-search-btn');
-            const searchBg = document.getElementById('search-bg');
-
-            closeButton.addEventListener('click', closeSearch);
-            searchBg.addEventListener('click', closeSearch);
+            document.getElementById('close-search-btn').addEventListener('click', closeSearch);
+            document.getElementById('search-bg').addEventListener('click', closeSearch);
             searchInput.focus();
+
+            if (cachedProducts) {
+                searchInput.addEventListener('input', () => renderResults(resultsContainer, searchInput.value.toLowerCase().trim()));
+                return;
+            }
 
             const allCommands = AppState.getCommands();
             if (!allCommands || allCommands.length === 0) {
                 resultsContainer.innerHTML = '<p class="text-gray-500 text-center">Nu există comenzi pentru a căuta produse.</p>';
                 return;
             }
+
+            resultsContainer.innerHTML = '<p class="text-gray-500 text-center">Se încarcă produsele...</p>';
 
             let allProducts = [];
             allCommands.forEach(command => {
@@ -66,60 +97,17 @@ export function initSearchHandler(navigateTo) {
                 });
             });
 
-            let allProducts_loaded = false;
+            searchInput.addEventListener('input', () => {
+                if (cachedProducts) renderResults(resultsContainer, searchInput.value.toLowerCase().trim());
+            });
 
-            const runSearch = (query) => {
-                if (query.length < 2) {
-                    resultsContainer.innerHTML = allProducts_loaded
-                        ? '<p class="text-gray-500 text-center">Introduceți cel puțin 2 caractere.</p>'
-                        : '<p class="text-gray-500 text-center">Se încarcă produsele...</p>';
-                    return;
-                }
-                if (!allProducts_loaded) {
-                    resultsContainer.innerHTML = '<p class="text-gray-500 text-center">Se încarcă produsele...</p>';
-                    return;
-                }
-
-                const filteredProducts = allProducts.filter(p =>
-                    p.details.title.toLowerCase().includes(query) ||
-                    p.asin.toLowerCase().includes(query)
-                );
-
-                if (filteredProducts.length === 0) {
-                    resultsContainer.innerHTML = '<p class="text-gray-500 text-center">Niciun produs găsit.</p>';
-                    return;
-                }
-
-                resultsContainer.innerHTML = filteredProducts.map(product => `
-                    <div class="flex items-center gap-4 p-2 transition-colors rounded-lg cursor-pointer hover:bg-gray-100 search-result-item" data-command-id="${product.commandId}" data-product-id="${product.id}">
-                        <img alt="${product.details.title}" class="h-12 w-12 rounded-md object-cover bg-gray-200" src="${product.details.images[0] || ''}" />
-                        <div class="flex-1 min-w-0">
-                            <p class="font-medium text-gray-900 line-clamp-2">${product.details.title}</p>
-                            <p class="text-sm text-gray-500">Comanda: ${product.commandName.replace('Comanda #', '#')}</p>
-                            <p class="text-xs text-gray-400 font-mono truncate">${product.asin}</p>
-                        </div>
-                    </div>
-                `).join('');
-
-                document.querySelectorAll('.search-result-item').forEach(item => {
-                    item.addEventListener('click', () => {
-                        selectProduct(item.dataset.commandId, item.dataset.productId);
-                    });
-                });
-            };
-
-            searchInput.addEventListener('input', () => runSearch(searchInput.value.toLowerCase().trim()));
-
-            const asins = allProducts.map(p => p.asin);
-            const productDetails = await fetchProductDetailsInBulk(asins);
-
-            allProducts = allProducts.map(p => ({
+            const productDetails = await fetchProductDetailsInBulk(allProducts.map(p => p.asin));
+            cachedProducts = allProducts.map(p => ({
                 ...p,
                 details: productDetails[p.asin] || { title: 'Nume indisponibil', images: [] }
             }));
-            allProducts_loaded = true;
 
-            runSearch(searchInput.value.toLowerCase().trim());
+            renderResults(resultsContainer, searchInput.value.toLowerCase().trim());
         };
 
         searchTriggerButton.addEventListener('click', openSearch);
