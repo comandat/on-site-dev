@@ -215,8 +215,10 @@
                     
                     <div>
                         <label for="manifestsku-input" class_block text-sm font-medium text-gray-700">Manifest SKU</label>
-                        <input type="text" id="manifestsku-input" placeholder="Introduceți Manifest SKU" required
-                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[var(--primary-color)] focus:ring-[var(--primary-color)]">
+                        <select id="manifestsku-input" required disabled
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[var(--primary-color)] focus:ring-[var(--primary-color)]">
+                            <option value="">Alege mai întâi o comandă...</option>
+                        </select>
                     </div>
                     
                     <button id="insert-button" type="submit" class="w-full flex justify-center items-center rounded-lg bg-[var(--primary-color)] py-3 text-base font-bold text-white shadow-md hover:bg-blue-700 disabled:bg-blue-300">
