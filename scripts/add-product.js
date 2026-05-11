@@ -33,7 +33,6 @@ async function handleFormSubmit(event) {
     event.preventDefault();
     
     const asinInput = document.getElementById('asin-input');
-    const countrySelect = document.getElementById('country-select');
     const commandSelect = document.getElementById('command-select');
     const manifestskuInput = document.getElementById('manifestsku-input');
     const insertButton = document.getElementById('insert-button');
@@ -80,9 +79,8 @@ async function handleFormSubmit(event) {
         if (result.status === 'success') {
             statusMessage.textContent = 'Produsul a fost importat cu succes.'; // Textul a fost schimbat
             statusMessage.className = 'text-green-600 text-center text-sm font-medium';
-            asinInput.value = ''; 
-            countrySelect.selectedIndex = 0; 
-            commandSelect.selectedIndex = 0; 
+            asinInput.value = '';
+            commandSelect.selectedIndex = 0;
             manifestskuInput.value = ''; 
         } else {
             throw new Error(result.message || 'Eroare necunoscută de la server.');

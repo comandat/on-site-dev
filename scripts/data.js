@@ -126,7 +126,8 @@ export async function fetchProductDetailsInBulk(asins) {
         if (!response.ok) throw new Error(`Network response was not ok`);
         
         const responseData = await response.json();
-        const bulkData = responseData.get_product_details_v2?.products || responseData.products || responseData;
+        const firstItem = Array.isArray(responseData) ? responseData[0] : responseData;
+        const bulkData = firstItem?.get_product_details_v2?.products || firstItem?.products || firstItem;
 
         for (const asin of asinsToFetch) {
             const productData = bulkData[asin] || { title: 'Nume indisponibil', images: [] };
