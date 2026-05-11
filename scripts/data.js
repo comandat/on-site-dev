@@ -131,7 +131,7 @@ export async function fetchProductDetailsInBulk(asins) {
 
         for (const asin of asinsToFetch) {
             const productData = bulkData[asin] || { title: 'Nume indisponibil', images: [] };
-            sessionStorage.setItem(`product_${asin}`, JSON.stringify(productData));
+            try { sessionStorage.setItem(`product_${asin}`, JSON.stringify(productData)); } catch (_) {}
             results[asin] = productData;
         }
     } catch (error) {

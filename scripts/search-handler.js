@@ -66,18 +66,17 @@ export function initSearchHandler(navigateTo) {
                 });
             });
 
-            const asins = allProducts.map(p => p.asin);
-            const productDetails = await fetchProductDetailsInBulk(asins);
+            let allProducts_loaded = false;
 
-            allProducts = allProducts.map(p => ({
-                ...p,
-                details: productDetails[p.asin] || { title: 'Nume indisponibil', images: [] }
-            }));
-
-            searchInput.addEventListener('input', () => {
-                const query = searchInput.value.toLowerCase().trim();
+            const runSearch = (query) => {
                 if (query.length < 2) {
-                    resultsContainer.innerHTML = '<p class="text-gray-500 text-center">Introduceți cel puțin 2 caractere.</p>';
+                    resultsContainer.innerHTML = allProducts_loaded
+                        ? '<p class="text-gray-500 text-center">Introduceți cel puțin 2 caractere.</p>'
+                        : '<p class="text-gray-500 text-center">Se încarcă produsele...</p>';
+                    return;
+                }
+                if (!allProducts_loaded) {
+                    resultsContainer.innerHTML = '<p class="text-gray-500 text-center">Se încarcă produsele...</p>';
                     return;
                 }
 
@@ -104,12 +103,23 @@ export function initSearchHandler(navigateTo) {
 
                 document.querySelectorAll('.search-result-item').forEach(item => {
                     item.addEventListener('click', () => {
-                        const cmdId = item.dataset.commandId;
-                        const prodId = item.dataset.productId;
-                        selectProduct(cmdId, prodId);
+                        selectProduct(item.dataset.commandId, item.dataset.productId);
                     });
                 });
-            });
+            };
+
+            searchInput.addEventListener('input', () => runSearch(searchInput.value.toLowerCase().trim()));
+
+            const asins = allProducts.map(p => p.asin);
+            const productDetails = await fetchProductDetailsInBulk(asins);
+
+            allProducts = allProducts.map(p => ({
+                ...p,
+                details: productDetails[p.asin] || { title: 'Nume indisponibil', images: [] }
+            }));
+            allProducts_loaded = true;
+
+            runSearch(searchInput.value.toLowerCase().trim());
         };
 
         searchTriggerButton.addEventListener('click', openSearch);
