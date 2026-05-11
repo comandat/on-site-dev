@@ -66,8 +66,7 @@ export async function fetchDataAndSyncState() {
     }
 }
 
-// Modifică semnătura funcției pentru a primi și productSku
-export async function sendStockUpdate(commandId, productSku, productAsin, stockDelta) {
+export async function sendStockUpdate(commandId, productSku, productAsin, manifestSku, stockDelta) {
     const changes = [];
     for (const condition in stockDelta) {
         const value = stockDelta[condition];
@@ -83,7 +82,8 @@ export async function sendStockUpdate(commandId, productSku, productAsin, stockD
 
     const payload = {
         orderId: commandId,
-        productsku: productSku, // <-- Adăugat noul câmp
+        productsku: productSku || productAsin,
+        manifestsku: manifestSku || null,
         asin: productAsin,
         changes: changes
     };
