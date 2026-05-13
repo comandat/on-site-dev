@@ -1,14 +1,18 @@
 // scripts/search-handler.js
 import { AppState, fetchProductDetailsInBulk } from './data.js';
 
-// Funcția de inițializare este acum exportată și primește router-ul
+let cachedProducts = null;
+
+export function resetSearchCache() {
+    cachedProducts = null;
+}
+
 export function initSearchHandler(navigateTo) {
-    const pageContent = document.getElementById('product-detail-page-content'); // Containerul paginii de detalii
+    const pageContent = document.getElementById('product-detail-page-content');
     const searchTriggerButton = document.getElementById('search-trigger-button');
     const searchOverlay = document.getElementById('search-overlay');
 
     let openSearch;
-    let cachedProducts = null; // încărcat o singură dată per sesiune
 
     if (searchTriggerButton && searchOverlay && pageContent) {
         const closeSearch = () => {

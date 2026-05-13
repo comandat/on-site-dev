@@ -1,5 +1,6 @@
 // scripts/add-product.js
-import { AppState } from './data.js';
+import { AppState, fetchDataAndSyncState } from './data.js';
+import { resetSearchCache } from './search-handler.js';
 
 const ADD_PRODUCT_WEBHOOK_URL = 'https://automatizare.comandat.ro/webhook/v2-register-product';
 let formListenerAttached = false;
@@ -19,7 +20,10 @@ function populateManifestSkus(commandId) {
         (command?.products || [])
             .map(p => p.manifestsku)
             .filter(Boolean)
-    )].sort();
+    )].sort((a, b) => {
+        const rank = s => s.startsWith('YELLOW') ? 0 : s.startsWith('GREY') ? 1 : 2;
+        return rank(a) - rank(b) || a.localeCompare(b);
+    });
 
     if (skus.length === 0) {
         manifestSelect.innerHTML = '<option value="">Nu există paleți în această comandă</option>';
@@ -72,7 +76,7 @@ async function handleFormSubmit(event) {
     const buttonLoader = insertButton.querySelector('.button-loader');
     const statusMessage = document.getElementById('status-message');
 
-    const asin = asinInput.value.trim();
+    const asin = asinInput.value.replace(/[^A-Za-z0-9]/g, '');
     const orderId = commandSelect.value;
     const manifestsku = manifestskuInput.value;
 
@@ -110,6 +114,9 @@ async function handleFormSubmit(event) {
             asinInput.value = '';
             commandSelect.selectedIndex = 0;
             populateManifestSkus(null);
+            resetSearchCache();
+            await fetchDataAndSyncState();
+            populateCommandsList();
         } else {
             throw new Error(result.message || 'Eroare necunoscută de la server.');
         }
