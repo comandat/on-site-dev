@@ -20,7 +20,10 @@ function populateManifestSkus(commandId) {
         (command?.products || [])
             .map(p => p.manifestsku)
             .filter(Boolean)
-    )].sort();
+    )].sort((a, b) => {
+        const rank = s => s.startsWith('YELLOW') ? 0 : s.startsWith('GREY') ? 1 : 2;
+        return rank(a) - rank(b) || a.localeCompare(b);
+    });
 
     if (skus.length === 0) {
         manifestSelect.innerHTML = '<option value="">Nu există paleți în această comandă</option>';
