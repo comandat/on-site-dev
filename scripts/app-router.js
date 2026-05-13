@@ -10,6 +10,7 @@ import { showToast } from './printer-handler.js';
 
 let openSearchFunction = () => {};
 let pages = {};
+let suppressNextHashChange = false;
 
 function navigateTo(pageId, context = {}) {
     Object.values(pages).forEach(page => page.classList.add('hidden'));
@@ -18,8 +19,11 @@ function navigateTo(pageId, context = {}) {
     if (targetPage) {
         targetPage.classList.remove('hidden');
         window.scrollTo(0, 0);
-        
-        window.location.hash = pageId;
+
+        if (window.location.hash !== '#' + pageId) {
+            suppressNextHashChange = true;
+            window.location.hash = pageId;
+        }
 
         switch (pageId) {
             case 'commands':
@@ -70,6 +74,10 @@ function updateFooterActiveState(activePageId) {
 }
 
 function handleHashChange() {
+    if (suppressNextHashChange) {
+        suppressNextHashChange = false;
+        return;
+    }
     const pageId = window.location.hash.substring(1);
     if (pageId && pages[pageId]) {
         navigateTo(pageId);
