@@ -1,5 +1,6 @@
 // scripts/add-product.js
-import { AppState } from './data.js';
+import { AppState, fetchDataAndSyncState } from './data.js';
+import { resetSearchCache } from './search-handler.js';
 
 const ADD_PRODUCT_WEBHOOK_URL = 'https://automatizare.comandat.ro/webhook/v2-register-product';
 let formListenerAttached = false;
@@ -110,6 +111,9 @@ async function handleFormSubmit(event) {
             asinInput.value = '';
             commandSelect.selectedIndex = 0;
             populateManifestSkus(null);
+            resetSearchCache();
+            await fetchDataAndSyncState();
+            populateCommandsList();
         } else {
             throw new Error(result.message || 'Eroare necunoscută de la server.');
         }
