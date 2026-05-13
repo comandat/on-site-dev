@@ -73,7 +73,7 @@ async function handleFormSubmit(event) {
     const buttonLoader = insertButton.querySelector('.button-loader');
     const statusMessage = document.getElementById('status-message');
 
-    const asin = asinInput.value.trim();
+    const asin = asinInput.value.replace(/[^\x20-\x7E]/g, '').trim();
     const orderId = commandSelect.value;
     const manifestsku = manifestskuInput.value;
 
