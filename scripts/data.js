@@ -6,9 +6,17 @@ const PRODUCT_DETAILS_URL = 'https://automatizare.comandat.ro/webhook/v2-product
 const STOCK_UPDATE_URL = 'https://automatizare.comandat.ro/webhook/4bef3762-2d4f-437d-a05c-001ccb597ab9';
 export const FIX_DUPLICATE_SKU_URL = 'https://automatizare.comandat.ro/webhook/fix-duplicate-sku';
 
+let _commandsCache = null;
+
 export const AppState = {
-    getCommands: () => JSON.parse(sessionStorage.getItem('liveCommandsData') || '[]'),
-    setCommands: (commands) => sessionStorage.setItem('liveCommandsData', JSON.stringify(commands))
+    getCommands: () => {
+        if (_commandsCache) return _commandsCache;
+        try { return JSON.parse(sessionStorage.getItem('liveCommandsData') || '[]'); } catch (_) { return []; }
+    },
+    setCommands: (commands) => {
+        _commandsCache = commands;
+        try { sessionStorage.setItem('liveCommandsData', JSON.stringify(commands)); } catch (_) {}
+    }
 };
 
 export async function fetchDataAndSyncState() {
